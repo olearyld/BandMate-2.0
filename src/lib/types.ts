@@ -1,0 +1,140 @@
+export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced' | 'professional';
+export type MediaType = 'image' | 'audio' | 'video';
+export type ConnectionStatus = 'pending' | 'accepted' | 'declined';
+
+export interface Profile {
+  id: string;
+  username: string;
+  display_name: string | null;
+  bio: string | null;
+  location_city: string | null;
+  location_state: string | null;
+  experience_level: ExperienceLevel | null;
+  avatar_url: string | null;
+  intro_media_url: string | null;
+  intro_media_type: MediaType | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Instrument {
+  id: number;
+  name: string;
+}
+
+export interface Genre {
+  id: number;
+  name: string;
+}
+
+export interface ProfileInstrument {
+  profile_id: string;
+  instrument_id: number;
+  skill_level: ExperienceLevel;
+  instrument?: Instrument;
+}
+
+export interface ProfileGenre {
+  profile_id: string;
+  genre_id: number;
+  genre?: Genre;
+}
+
+export interface MediaPost {
+  id: string;
+  profile_id: string;
+  media_url: string;
+  media_type: MediaType;
+  caption: string | null;
+  tags: string[] | null;
+  thumbnail_url: string | null;
+  status: string;
+  created_at: string;
+}
+
+export interface Like {
+  id: string;
+  post_id: string;
+  user_id: string;
+  created_at: string;
+}
+
+export interface Comment {
+  id: string;
+  post_id: string;
+  user_id: string;
+  body: string;
+  created_at: string;
+}
+
+export interface Connection {
+  id: string;
+  requester_id: string;
+  recipient_id: string;
+  status: ConnectionStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Message {
+  id: string;
+  sender_id: string;
+  recipient_id: string;
+  content: string;
+  read_at: string | null;
+  created_at: string;
+}
+
+// Full profile with joined data, used in profile views.
+// Shape matches the select query: profile_instruments(skill_level, instruments(id, name))
+export interface FullProfile extends Profile {
+  profile_instruments: { skill_level: ExperienceLevel; instruments: Instrument }[];
+  profile_genres: { genre_id: number; genres: Genre }[];
+}
+
+export interface PostAuthor {
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+}
+
+// Feed row shape. Shape matches the select query:
+// profiles(username, display_name, avatar_url), likes(user_id), comments(id)
+export interface FeedPostRow extends MediaPost {
+  profiles: PostAuthor;
+  likes: { user_id: string }[];
+  comments: { id: string }[];
+}
+
+// Post detail row shape — same as FeedPostRow but with full comment rows
+// (each comment joined with its author) instead of just comment ids.
+export interface PostDetailRow extends MediaPost {
+  profiles: PostAuthor;
+  likes: { user_id: string }[];
+  comments: (Comment & { profiles: PostAuthor })[];
+}
+
+// Row-only types used in insert/update — no joined relation fields
+export interface ProfileInsert {
+  id: string;
+  username: string;
+  display_name?: string | null;
+  bio?: string | null;
+  location_city?: string | null;
+  location_state?: string | null;
+  experience_level?: ExperienceLevel | null;
+  avatar_url?: string | null;
+  intro_media_url?: string | null;
+  intro_media_type?: MediaType | null;
+}
+
+export interface ProfileInstrumentInsert {
+  profile_id: string;
+  instrument_id: number;
+  skill_level: ExperienceLevel;
+}
+
+export interface ProfileGenreInsert {
+  profile_id: string;
+  genre_id: number;
+}

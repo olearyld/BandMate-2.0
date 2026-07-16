@@ -7,9 +7,16 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.bandmate.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Bandmate uses your camera to take profile photos.",
+        "NSPhotoLibraryUsageDescription": "Bandmate accesses your photo library to upload photos and videos for your profile.",
+        "NSMicrophoneUsageDescription": "Bandmate uses your microphone to record audio clips for your profile."
+      }
     },
     "android": {
+      "package": "com.bandmate.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -20,6 +27,11 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-video",
+      "expo-audio",
+      "expo-asset"
+    ]
   }
 }
