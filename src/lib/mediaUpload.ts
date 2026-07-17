@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as VideoThumbnails from 'expo-video-thumbnails';
+import { File } from 'expo-file-system';
 import {
   useAudioRecorder,
   RecordingPresets,
@@ -122,12 +123,15 @@ export function useMediaRecorder() {
   return { isRecording, start, stop };
 }
 
-async function uploadToStorage(uri: string, path: string): Promise<string> {
-  const response = await fetch(uri);
-  const blob = await response.blob();
+async function uploadToStorage(uri: string, path: string, contentType: string): Promise<string> {
+  // Deliberately NOT fetch(uri).blob(): storage-js's own docs say Blob/File/FormData
+  // "does not work as intended" in React Native (RN's Blob->FormData serialization
+  // doesn't reliably carry the real bytes/content-type through) and recommend an
+  // ArrayBuffer instead. expo-file-system's File class reads one directly.
+  const arrayBuffer = await new File(uri).arrayBuffer();
   const { error } = await supabase.storage
     .from(STORAGE_BUCKET)
-    .upload(path, blob, { upsert: true, contentType: blob.type });
+    .upload(path, arrayBuffer, { upsert: true, contentType });
   if (error) throw error;
   const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
   return data.publicUrl;
@@ -137,6 +141,24 @@ function extensionFor(uri: string, type: MediaType): string {
   if (type === 'audio') return 'm4a';
   const fromUri = uri.split('.').pop();
   return fromUri || (type === 'video' ? 'mp4' : 'jpg');
+}
+
+function mimeTypeFor(ext: string): string {
+  switch (ext.toLowerCase()) {
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'png':
+      return 'image/png';
+    case 'm4a':
+      return 'audio/m4a';
+    case 'mp4':
+      return 'video/mp4';
+    case 'mov':
+      return 'video/quicktime';
+    default:
+      return 'application/octet-stream';
+  }
 }
 
 function randomId(): string {
@@ -150,7 +172,7 @@ function randomId(): string {
 export async function uploadIntroMedia(userId: string, media: PickedMedia): Promise<{ url: string }> {
   const ext = extensionFor(media.uri, media.type);
   const path = `${userId}/intro.${ext}`;
-  const url = await uploadToStorage(media.uri, path);
+  const url = await uploadToStorage(media.uri, path, mimeTypeFor(ext));
   return { url };
 }
 
@@ -164,11 +186,15 @@ export async function uploadPostMedia(
 ): Promise<{ url: string; thumbnailUrl: string | null }> {
   const ext = extensionFor(media.uri, media.type);
   const id = randomId();
-  const url = await uploadToStorage(media.uri, `${userId}/posts/${id}.${ext}`);
+  const url = await uploadToStorage(media.uri, `${userId}/posts/${id}.${ext}`, mimeTypeFor(ext));
 
   let thumbnailUrl: string | null = null;
   if (media.thumbnailUri) {
-    thumbnailUrl = await uploadToStorage(media.thumbnailUri, `${userId}/posts/${id}_thumb.jpg`);
+    thumbnailUrl = await uploadToStorage(
+      media.thumbnailUri,
+      `${userId}/posts/${id}_thumb.jpg`,
+      mimeTypeFor('jpg')
+    );
   }
   return { url, thumbnailUrl };
 }

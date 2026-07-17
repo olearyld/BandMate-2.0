@@ -53,6 +53,19 @@ jest.mock('../../src/lib/supabase', () => ({
   },
 }));
 
+const mockFileConstructor = jest.fn();
+const mockArrayBuffer = jest.fn(async () => new ArrayBuffer(8));
+jest.mock('expo-file-system', () => ({
+  File: class {
+    constructor(...args: unknown[]) {
+      mockFileConstructor(...args);
+    }
+    arrayBuffer() {
+      return mockArrayBuffer();
+    }
+  },
+}));
+
 import {
   pickImage,
   pickVideo,
@@ -74,9 +87,8 @@ function manipulatorContext(saveUri = 'compressed.jpg') {
 beforeEach(() => {
   jest.clearAllMocks();
   mockRecorderUri = null;
-  (global as any).fetch = jest.fn(async () => ({
-    blob: async () => ({ type: 'image/jpeg' }),
-  }));
+  mockArrayBuffer.mockClear();
+  mockArrayBuffer.mockImplementation(async () => new ArrayBuffer(8));
 });
 
 describe('pickImage', () => {
@@ -180,18 +192,41 @@ describe('uploadIntroMedia', () => {
     expect(mockUpload).toHaveBeenCalledWith(
       'u1/intro.jpg',
       expect.anything(),
-      expect.objectContaining({ upsert: true })
+      expect.objectContaining({ upsert: true, contentType: 'image/jpeg' })
     );
     expect(result).toEqual({ url: 'https://cdn/media/u1/intro.jpg' });
   });
 
-  it('always uses the m4a extension for audio, regardless of source uri', async () => {
+  it('always uses the m4a extension and audio/m4a content type for audio, regardless of source uri', async () => {
     mockUpload.mockResolvedValue({ error: null });
     mockGetPublicUrl.mockReturnValue({ data: { publicUrl: 'https://cdn/media/u1/intro.m4a' } });
 
     await uploadIntroMedia('u1', { uri: 'file://recording.caf', type: 'audio' });
 
-    expect(mockUpload).toHaveBeenCalledWith('u1/intro.m4a', expect.anything(), expect.anything());
+    expect(mockUpload).toHaveBeenCalledWith(
+      'u1/intro.m4a',
+      expect.anything(),
+      expect.objectContaining({ contentType: 'audio/m4a' })
+    );
+  });
+
+  it('reads the file via expo-file-system\'s File(uri).arrayBuffer(), not fetch().blob()', async () => {
+    // storage-js's own docs: "For React Native, using either Blob, File or FormData
+    // does not work as intended" (RN's Blob->FormData serialization doesn't reliably
+    // carry the real bytes/content-type) -- an ArrayBuffer is the documented fix.
+    mockUpload.mockResolvedValue({ error: null });
+    mockGetPublicUrl.mockReturnValue({ data: { publicUrl: 'https://cdn/media/u1/intro.jpg' } });
+    const fakeBuffer = new ArrayBuffer(16);
+    mockArrayBuffer.mockResolvedValueOnce(fakeBuffer);
+
+    await uploadIntroMedia('u1', { uri: 'file://photo.jpg', type: 'image' });
+
+    expect(mockFileConstructor).toHaveBeenCalledWith('file://photo.jpg');
+    expect(mockUpload).toHaveBeenCalledWith(
+      'u1/intro.jpg',
+      fakeBuffer,
+      expect.objectContaining({ contentType: 'image/jpeg' })
+    );
   });
 
   it('propagates a storage upload error', async () => {
@@ -227,7 +262,9 @@ describe('uploadPostMedia', () => {
     });
 
     expect(mockUpload).toHaveBeenCalledTimes(2);
+    expect(mockUpload.mock.calls[0][2]).toEqual(expect.objectContaining({ contentType: 'video/quicktime' }));
     expect(mockUpload.mock.calls[1][0]).toMatch(/^u1\/posts\/[a-z0-9]+_thumb\.jpg$/);
+    expect(mockUpload.mock.calls[1][2]).toEqual(expect.objectContaining({ contentType: 'image/jpeg' }));
     expect(result.thumbnailUrl).toBe('https://cdn/media/u1/posts/x_thumb.jpg');
   });
 });
