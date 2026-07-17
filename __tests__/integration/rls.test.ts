@@ -1,6 +1,9 @@
 /**
- * RLS / security integration tests. These run against the real Bandmate Supabase
- * project (no branching available on the current plan — see CONVENTIONS.md).
+ * RLS / security integration tests. These run against a dedicated test
+ * Supabase project (TEST_SUPABASE_URL/TEST_SUPABASE_ANON_KEY) — never the
+ * app's production project. No Supabase branching available (needs a
+ * Pro-plan upgrade), so this is a real second free-tier project with the
+ * same schema instead. See CONVENTIONS.md.
  *
  * Supabase's free-tier auth email rate limit fires on every signUp() call
  * (even though we bypass confirmation right after), so this suite does NOT
@@ -26,12 +29,14 @@ import type { Database } from '../../src/lib/database.types';
 
 jest.setTimeout(30000);
 
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+// Deliberately TEST_SUPABASE_*, not EXPO_PUBLIC_SUPABASE_* — this suite targets
+// a dedicated test project (never the app's production project). See CONVENTIONS.md.
+const SUPABASE_URL = process.env.TEST_SUPABASE_URL!;
+const SUPABASE_ANON_KEY = process.env.TEST_SUPABASE_ANON_KEY!;
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   throw new Error(
-    'EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY are not set. ' +
+    'TEST_SUPABASE_URL / TEST_SUPABASE_ANON_KEY are not set. ' +
       'Integration tests need a real .env — see jest.setup.js.'
   );
 }

@@ -4,13 +4,16 @@
  * correctly-linked profiles/profile_instruments/profile_genres row, matching
  * exactly what Step4Media.tsx writes when onboarding completes.
  *
+ * Runs against a dedicated test Supabase project (TEST_SUPABASE_URL/
+ * TEST_SUPABASE_ANON_KEY) — never the app's production project.
+ *
  * Unlike the RLS suite, this test's entire point is exercising the real
  * signUp() call, so it can't be redesigned around fixed fixture accounts —
  * it inherently uses one signup per run. Supabase's auth email rate limit is
- * strict (observed as tight as ~1/hour on this project's free tier), so this
- * test WILL start failing on rate-limit grounds if run too frequently — that
- * is an expected, disclosed limitation of testing a live signup flow, not a
- * bug in the app. See CONVENTIONS.md.
+ * strict (observed as tight as ~1/hour even on this dedicated project's free
+ * tier), so this test WILL start failing on rate-limit grounds if run too
+ * frequently — that is an expected, disclosed limitation of testing a live
+ * signup flow, not a bug in the app. See CONVENTIONS.md.
  *
  * This also can't clean up its own auth.users row afterward (no service-role
  * key available client-side) — the created test account persists. Documented
@@ -24,12 +27,12 @@ import type { ExperienceLevel, FullProfile } from '../../src/lib/types';
 
 jest.setTimeout(30000);
 
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+const SUPABASE_URL = process.env.TEST_SUPABASE_URL!;
+const SUPABASE_ANON_KEY = process.env.TEST_SUPABASE_ANON_KEY!;
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   throw new Error(
-    'EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY are not set. ' +
+    'TEST_SUPABASE_URL / TEST_SUPABASE_ANON_KEY are not set. ' +
       'Integration tests need a real .env — see jest.setup.js.'
   );
 }
