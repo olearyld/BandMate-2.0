@@ -31,6 +31,13 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
+      - name: Check production/test schema parity
+        run: node scripts/check-migrations-parity.js
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          TEST_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+          TEST_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY }}
       - run: npm run test:integration
         env:
           # Dedicated test Supabase project — never the app's production project.
