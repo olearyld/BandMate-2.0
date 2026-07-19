@@ -312,6 +312,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          availability_statuses: Database["public"]["Enums"]["availability_status"][]
           avatar_url: string | null
           bio: string | null
           created_at: string
@@ -328,6 +329,7 @@ export type Database = {
           username: string
         }
         Insert: {
+          availability_statuses?: Database["public"]["Enums"]["availability_status"][]
           avatar_url?: string | null
           bio?: string | null
           created_at?: string
@@ -344,6 +346,7 @@ export type Database = {
           username: string
         }
         Update: {
+          availability_statuses?: Database["public"]["Enums"]["availability_status"][]
           avatar_url?: string | null
           bio?: string | null
           created_at?: string
@@ -369,6 +372,13 @@ export type Database = {
       dev_confirm_user_email: { Args: { user_id: string }; Returns: undefined }
     }
     Enums: {
+      availability_status:
+        | "looking_for_band"
+        | "available_for_session_work"
+        | "open_to_auditions"
+        | "forming_band"
+        | "open_to_collabs"
+        | "not_currently_looking"
       connection_status: "pending" | "accepted" | "declined"
       experience_level:
         | "beginner"
@@ -503,6 +513,14 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      availability_status: [
+        "looking_for_band",
+        "available_for_session_work",
+        "open_to_auditions",
+        "forming_band",
+        "open_to_collabs",
+        "not_currently_looking",
+      ],
       connection_status: ["pending", "accepted", "declined"],
       experience_level: [
         "beginner",

@@ -255,6 +255,52 @@ async function createProfileTags(admin, users, instruments, genres) {
   return { instrumentRows: instrumentRows.length, genreRows: genreRows.length };
 }
 
+function pairKey(a, b) {
+  return [a, b].sort().join(':');
+}
+
+/**
+ * A handful of connections in varied states so the Phase 3 connect/accept/
+ * decline/remove UI is actually exercisable in the simulator, not just in
+ * tests. Guarantees the first seed user (seed.user.0, the one most likely
+ * to be manually tested) has one incoming pending request, one outgoing
+ * pending request, and one accepted connection, then scatters a few more
+ * random pairs among the rest for realism. Never inserts 'declined' — that
+ * status is dead going forward (declining is a DELETE), see CONVENTIONS.md.
+ */
+async function createConnections(admin, users) {
+  if (users.length < 4) return { pending: 0, accepted: 0 };
+
+  const [u0, u1, u2, u3] = users;
+  const rows = [
+    { requester_id: u1.id, recipient_id: u0.id, status: 'pending' }, // incoming to u0
+    { requester_id: u0.id, recipient_id: u2.id, status: 'pending' }, // outgoing from u0
+    { requester_id: u0.id, recipient_id: u3.id, status: 'accepted' }, // accepted for u0
+  ];
+
+  const usedPairs = new Set(rows.map((r) => pairKey(r.requester_id, r.recipient_id)));
+  const extraTarget = Math.min(5, Math.max(0, users.length - 4));
+  let attempts = 0;
+  while (rows.length - 3 < extraTarget && attempts < extraTarget * 10) {
+    attempts++;
+    const a = pick(users);
+    const b = pick(users);
+    if (a.id === b.id) continue;
+    const key = pairKey(a.id, b.id);
+    if (usedPairs.has(key)) continue;
+    usedPairs.add(key);
+    rows.push({ requester_id: a.id, recipient_id: b.id, status: pick(['pending', 'pending', 'accepted']) });
+  }
+
+  const { error } = await admin.from('connections').insert(rows);
+  if (error) throw new Error(`insert connections failed: ${error.message}`);
+
+  return {
+    pending: rows.filter((r) => r.status === 'pending').length,
+    accepted: rows.filter((r) => r.status === 'accepted').length,
+  };
+}
+
 function randomTags() {
   const r = Math.random();
   if (r < 0.3) return null;
@@ -344,6 +390,9 @@ async function seed(admin) {
   console.log('Assigning instruments/genres...');
   const tagCounts = await createProfileTags(admin, users, instruments, genres);
 
+  console.log('Creating connections...');
+  const connectionCounts = await createConnections(admin, users);
+
   console.log(`Creating ${postCount} media_posts...`);
   const posts = await createPosts(admin, users, postCount);
 
@@ -358,6 +407,8 @@ async function seed(admin) {
     posts: posts.length,
     profileInstruments: tagCounts.instrumentRows,
     profileGenres: tagCounts.genreRows,
+    connectionsPending: connectionCounts.pending,
+    connectionsAccepted: connectionCounts.accepted,
     likes: likeCount,
     comments: commentCount,
   };
@@ -393,6 +444,8 @@ async function main() {
   console.log(`  Users created:      ${counts.users}`);
   console.log(`  Profile-instrument links: ${counts.profileInstruments}`);
   console.log(`  Profile-genre links:      ${counts.profileGenres}`);
+  console.log(`  Connections (pending):    ${counts.connectionsPending}`);
+  console.log(`  Connections (accepted):   ${counts.connectionsAccepted}`);
   console.log(`  Posts created:      ${counts.posts}`);
   console.log(`  Likes created:      ${counts.likes}`);
   console.log(`  Comments created:   ${counts.comments}`);

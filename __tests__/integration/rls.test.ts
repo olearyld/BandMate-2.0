@@ -104,6 +104,34 @@ async function signInOrBootstrapFixture(
   return userId;
 }
 
+/**
+ * Inserts a connection, runs `fn(connectionId)`, then always deletes it
+ * (regardless of what fn does or throws) — used for the new positive-path
+ * connection tests below so they don't touch the shared, cross-run-reused
+ * B<->C fixture connection (`connectionId`) and don't leave dangling rows
+ * that would trip connections_unique_pair on the next run.
+ */
+async function withDisposableConnection(
+  insertingClient: SupabaseClient<Database>,
+  requesterId: string,
+  recipientId: string,
+  fn: (connectionId: string) => Promise<void>
+): Promise<void> {
+  const { data: conn, error } = await insertingClient
+    .from('connections')
+    .insert({ requester_id: requesterId, recipient_id: recipientId })
+    .select('id')
+    .single();
+  if (error || !conn) {
+    throw new Error(`disposable connection setup failed: ${error?.message}`);
+  }
+  try {
+    await fn(conn.id);
+  } finally {
+    await insertingClient.from('connections').delete().eq('id', conn.id);
+  }
+}
+
 const READ_ANY_AUTHENTICATED_TABLES = [
   'profiles',
   'instruments',
@@ -264,6 +292,120 @@ describe('RLS policies', () => {
     await clientA.from('connections').delete().eq('id', connectionId);
     const { data } = await clientC.from('connections').select('id').eq('id', connectionId).maybeSingle();
     expect(data).toBeTruthy();
+  });
+
+  it('A cannot insert a connection request impersonating B as requester', async () => {
+    const { error } = await clientA
+      .from('connections')
+      .insert({ requester_id: userB, recipient_id: userA });
+    expect(error).toBeTruthy();
+
+    const { data: check } = await clientB
+      .from('connections')
+      .select('id')
+      .eq('requester_id', userB)
+      .eq('recipient_id', userA)
+      .maybeSingle();
+    expect(check).toBeNull();
+  });
+
+  it('self-connection is blocked by the no_self_connect CHECK constraint', async () => {
+    const { error } = await clientA.from('connections').insert({ requester_id: userA, recipient_id: userA });
+    expect(error).toBeTruthy();
+    expect((error as { code?: string } | null)?.code).toBe('23514');
+  });
+
+  it('duplicate connection request is blocked regardless of direction (connections_unique_pair)', async () => {
+    // B<->C already exists (connectionId, requester B, recipient C, reused across runs).
+    const { error: sameDirection } = await clientB
+      .from('connections')
+      .insert({ requester_id: userB, recipient_id: userC });
+    expect(sameDirection).toBeTruthy();
+    expect((sameDirection as { code?: string } | null)?.code).toBe('23505');
+
+    const { error: reverseDirection } = await clientC
+      .from('connections')
+      .insert({ requester_id: userC, recipient_id: userB });
+    expect(reverseDirection).toBeTruthy();
+    expect((reverseDirection as { code?: string } | null)?.code).toBe('23505');
+  });
+
+  it('B (requester) can delete a pending connection they created', async () => {
+    await withDisposableConnection(clientB, userB, userA, async (id) => {
+      const { error } = await clientB.from('connections').delete().eq('id', id);
+      expect(error).toBeFalsy();
+      const { data } = await clientA.from('connections').select('id').eq('id', id).maybeSingle();
+      expect(data).toBeNull();
+    });
+  });
+
+  it('A (recipient) can delete a pending connection sent to them', async () => {
+    await withDisposableConnection(clientB, userB, userA, async (id) => {
+      const { error } = await clientA.from('connections').delete().eq('id', id);
+      expect(error).toBeFalsy();
+      const { data } = await clientB.from('connections').select('id').eq('id', id).maybeSingle();
+      expect(data).toBeNull();
+    });
+  });
+
+  it('C (recipient) can accept a pending request', async () => {
+    await withDisposableConnection(clientA, userA, userC, async (id) => {
+      const { error } = await clientC.from('connections').update({ status: 'accepted' }).eq('id', id);
+      expect(error).toBeFalsy();
+      const { data } = await clientA.from('connections').select('status').eq('id', id).single();
+      expect(data?.status).toBe('accepted');
+    });
+  });
+
+  it('either party can delete an accepted connection', async () => {
+    await withDisposableConnection(clientB, userB, userA, async (id) => {
+      await clientA.from('connections').update({ status: 'accepted' }).eq('id', id);
+      const { data: check } = await clientB.from('connections').select('status').eq('id', id).single();
+      expect(check?.status).toBe('accepted');
+
+      const { error } = await clientB.from('connections').delete().eq('id', id);
+      expect(error).toBeFalsy();
+      const { data } = await clientA.from('connections').select('id').eq('id', id).maybeSingle();
+      expect(data).toBeNull();
+    });
+  });
+
+  // -------------------------------------------------- availability_statuses
+  it("A CAN read availability_statuses on B's profile (public-read pattern)", async () => {
+    const { data, error } = await clientA
+      .from('profiles')
+      .select('availability_statuses')
+      .eq('id', userB)
+      .maybeSingle();
+    expect(error).toBeFalsy();
+    expect(data?.availability_statuses).toBeDefined();
+  });
+
+  it("A cannot update availability_statuses on B's profile", async () => {
+    const { data } = await clientA
+      .from('profiles')
+      .update({ availability_statuses: ['looking_for_band'] })
+      .eq('id', userB)
+      .select();
+    expect(data ?? []).toHaveLength(0);
+  });
+
+  it('B CAN update their own availability_statuses', async () => {
+    const { error } = await clientB
+      .from('profiles')
+      .update({ availability_statuses: ['open_to_collabs'] })
+      .eq('id', userB);
+    expect(error).toBeFalsy();
+
+    const { data: check } = await clientB
+      .from('profiles')
+      .select('availability_statuses')
+      .eq('id', userB)
+      .single();
+    expect(check?.availability_statuses).toEqual(['open_to_collabs']);
+
+    // Reset so this doesn't leave fixture state mutated for other runs.
+    await clientB.from('profiles').update({ availability_statuses: [] }).eq('id', userB);
   });
 
   // ---------------------------------------------------------------- messages

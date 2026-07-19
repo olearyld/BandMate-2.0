@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import {
   View,
   Text,
@@ -11,21 +11,62 @@ import {
 } from 'react-native';
 import { pickImage, pickVideo, useMediaRecorder, uploadIntroMedia, type PickedMedia } from '../../lib/mediaUpload';
 import { supabase } from '../../lib/supabase';
-import type {
-  FullProfile,
-  Instrument,
-  Genre,
-  ExperienceLevel,
+import {
+  SKILL_LEVELS,
+  AVAILABILITY_STATUSES,
+  type FullProfile,
+  type Instrument,
+  type Genre,
+  type ExperienceLevel,
+  type AvailabilityStatus,
 } from '../../lib/types';
-import { ProfileBody } from './PublicProfileScreen';
+import ProfileBody from '../../components/ProfileBody';
 import AudioPlayer from '../../components/AudioPlayer';
 
-const SKILL_LEVELS: { value: ExperienceLevel; label: string }[] = [
-  { value: 'beginner', label: 'Beginner' },
-  { value: 'intermediate', label: 'Intermediate' },
-  { value: 'advanced', label: 'Advanced' },
-  { value: 'professional', label: 'Pro' },
-];
+/** Toggles `value`'s membership in a Set, for use as an onPress handler factory. */
+function toggleInSet<T>(setter: Dispatch<SetStateAction<Set<T>>>) {
+  return (value: T) => {
+    setter((prev) => {
+      const next = new Set(prev);
+      next.has(value) ? next.delete(value) : next.add(value);
+      return next;
+    });
+  };
+}
+
+/** Shared pill-toggle layout for a flat list of selectable options (genres, availability). */
+function ChipToggleGroup<T>({
+  items,
+  getKey,
+  getLabel,
+  isSelected,
+  onToggle,
+}: {
+  items: T[];
+  getKey: (item: T) => string | number;
+  getLabel: (item: T) => string;
+  isSelected: (item: T) => boolean;
+  onToggle: (item: T) => void;
+}) {
+  return (
+    <View className="flex-row flex-wrap gap-2">
+      {items.map((item) => {
+        const isSel = isSelected(item);
+        return (
+          <TouchableOpacity
+            key={getKey(item)}
+            className={`px-4 py-2 rounded-full border ${isSel ? 'bg-brand-primary border-brand-primary' : 'border-gray-300'}`}
+            onPress={() => onToggle(item)}
+          >
+            <Text className={`text-sm font-medium ${isSel ? 'text-white' : 'text-gray-700'}`}>
+              {getLabel(item)}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
 
 export default function MyProfileScreen() {
   const [profile, setProfile] = useState<FullProfile | null>(null);
@@ -126,6 +167,10 @@ function EditProfileForm({
   const existingGenres = new Set<number>(profile.profile_genres.map((pg) => pg.genres.id));
   const [selectedGenres, setSelectedGenres] = useState<Set<number>>(existingGenres);
 
+  const [selectedAvailability, setSelectedAvailability] = useState<Set<AvailabilityStatus>>(
+    new Set(profile.availability_statuses)
+  );
+
   const [allInstruments, setAllInstruments] = useState<Instrument[]>([]);
   const [allGenres, setAllGenres] = useState<Genre[]>([]);
 
@@ -154,13 +199,8 @@ function EditProfileForm({
     });
   }
 
-  function toggleGenre(id: number) {
-    setSelectedGenres((prev) => {
-      const n = new Set(prev);
-      n.has(id) ? n.delete(id) : n.add(id);
-      return n;
-    });
-  }
+  const toggleGenre = toggleInSet(setSelectedGenres);
+  const toggleAvailability = toggleInSet(setSelectedAvailability);
 
   async function handlePickPhoto() {
     try {
@@ -218,6 +258,7 @@ function EditProfileForm({
           location_state: state.trim() || null,
           intro_media_url: introMediaUrl,
           intro_media_type: introMediaType,
+          availability_statuses: Array.from(selectedAvailability),
         })
         .eq('id', user.id);
       if (profileError) throw profileError;
@@ -369,20 +410,23 @@ function EditProfileForm({
 
         {/* Genres */}
         <Text className="text-sm font-semibold text-gray-700 mt-4 mb-3">Genres</Text>
-        <View className="flex-row flex-wrap gap-2">
-          {allGenres.map((genre) => {
-            const isSel = selectedGenres.has(genre.id);
-            return (
-              <TouchableOpacity
-                key={genre.id}
-                className={`px-4 py-2 rounded-full border ${isSel ? 'bg-brand-primary border-brand-primary' : 'border-gray-300'}`}
-                onPress={() => toggleGenre(genre.id)}
-              >
-                <Text className={`text-sm font-medium ${isSel ? 'text-white' : 'text-gray-700'}`}>{genre.name}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        <ChipToggleGroup
+          items={allGenres}
+          getKey={(genre) => genre.id}
+          getLabel={(genre) => genre.name}
+          isSelected={(genre) => selectedGenres.has(genre.id)}
+          onToggle={(genre) => toggleGenre(genre.id)}
+        />
+
+        {/* Availability */}
+        <Text className="text-sm font-semibold text-gray-700 mt-4 mb-3">Availability</Text>
+        <ChipToggleGroup
+          items={AVAILABILITY_STATUSES}
+          getKey={(opt) => opt.value}
+          getLabel={(opt) => opt.label}
+          isSelected={(opt) => selectedAvailability.has(opt.value)}
+          onToggle={(opt) => toggleAvailability(opt.value)}
+        />
       </ScrollView>
 
       <View className="absolute bottom-0 left-0 right-0 px-6 py-4 bg-white border-t border-gray-100">

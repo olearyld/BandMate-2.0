@@ -1,4 +1,3 @@
-import React from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -11,6 +10,7 @@ import Step2Instruments from '../screens/onboarding/Step2Instruments';
 import Step3Genres from '../screens/onboarding/Step3Genres';
 import Step4Media from '../screens/onboarding/Step4Media';
 import FeedScreen from '../screens/FeedScreen';
+import ConnectionsScreen from '../screens/ConnectionsScreen';
 import MessagesScreen from '../screens/MessagesScreen';
 import MyProfileScreen from '../screens/profile/MyProfileScreen';
 import PublicProfileScreen from '../screens/profile/PublicProfileScreen';
@@ -67,6 +67,11 @@ function MainTabs() {
         name="Feed"
         component={FeedScreen}
         options={{ title: 'Feed', tabBarIcon: () => <Text style={{ fontSize: 20 }}>🎵</Text> }}
+      />
+      <Tab.Screen
+        name="Connections"
+        component={ConnectionsScreen}
+        options={{ title: 'Connections', tabBarIcon: () => <Text style={{ fontSize: 20 }}>🤝</Text> }}
       />
       <Tab.Screen
         name="MyProfile"

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,8 @@ import { useAppContext } from '../navigation/AppContext';
 import type { MainStackParamList } from '../navigation/types';
 import type { PostDetailRow } from '../lib/types';
 import AudioPlayer from '../components/AudioPlayer';
-import { VideoPlayerBlock } from './profile/PublicProfileScreen';
+import Avatar from '../components/Avatar';
+import VideoPlayerBlock from '../components/VideoPlayerBlock';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'PostDetail'>;
 
@@ -27,7 +28,7 @@ const POST_DETAIL_SELECT = `
   comments ( id, post_id, user_id, body, created_at, profiles ( username, display_name, avatar_url ) )
 `;
 
-export default function PostDetailScreen({ route }: Props) {
+export default function PostDetailScreen({ route, navigation }: Props) {
   const { postId } = route.params;
   const { session } = useAppContext();
   const currentUserId = session?.user.id;
@@ -123,16 +124,12 @@ export default function PostDetailScreen({ route }: Props) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerClassName="pb-6">
-        <View className="flex-row items-center px-4 pt-4 mb-3">
-          {author.avatar_url ? (
-            <Image source={{ uri: author.avatar_url }} className="w-9 h-9 rounded-full mr-3" />
-          ) : (
-            <View className="w-9 h-9 rounded-full bg-brand-primary items-center justify-center mr-3">
-              <Text className="text-white text-sm font-bold">
-                {(author.display_name ?? author.username)[0].toUpperCase()}
-              </Text>
-            </View>
-          )}
+        <TouchableOpacity
+          activeOpacity={0.7}
+          className="flex-row items-center px-4 pt-4 mb-3"
+          onPress={() => navigation.navigate('PublicProfile', { profileId: post.profile_id })}
+        >
+          <Avatar uri={author.avatar_url} name={author.display_name ?? author.username} className="mr-3" />
           <View>
             <Text className="text-sm font-semibold text-gray-900">
               {author.display_name ?? author.username}
@@ -141,7 +138,7 @@ export default function PostDetailScreen({ route }: Props) {
               {new Date(post.created_at).toLocaleDateString()}
             </Text>
           </View>
-        </View>
+        </TouchableOpacity>
 
         {post.media_type === 'image' && (
           <Image source={{ uri: post.media_url }} className="w-full h-80 bg-gray-100" resizeMode="cover" />
@@ -185,15 +182,12 @@ export default function PostDetailScreen({ route }: Props) {
             const commentAuthor = c.profiles;
             return (
               <View key={c.id} className="flex-row items-start mb-3">
-                {commentAuthor.avatar_url ? (
-                  <Image source={{ uri: commentAuthor.avatar_url }} className="w-7 h-7 rounded-full mr-2.5 mt-0.5" />
-                ) : (
-                  <View className="w-7 h-7 rounded-full bg-brand-primary items-center justify-center mr-2.5 mt-0.5">
-                    <Text className="text-white text-xs font-bold">
-                      {(commentAuthor.display_name ?? commentAuthor.username)[0].toUpperCase()}
-                    </Text>
-                  </View>
-                )}
+                <Avatar
+                  uri={commentAuthor.avatar_url}
+                  name={commentAuthor.display_name ?? commentAuthor.username}
+                  size="sm"
+                  className="mr-2.5 mt-0.5"
+                />
                 <View className="flex-1">
                   <Text className="text-sm text-gray-900">
                     <Text className="font-semibold">{commentAuthor.display_name ?? commentAuthor.username}</Text>

@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import { useAppContext } from '../navigation/AppContext';
 import type { MainTabParamList, MainStackParamList } from '../navigation/types';
 import type { FeedPostRow } from '../lib/types';
 import AudioPlayer from '../components/AudioPlayer';
+import Avatar from '../components/Avatar';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Feed'>,
@@ -184,6 +185,7 @@ export default function FeedScreen({ navigation }: Props) {
               post={item}
               currentUserId={currentUserId}
               onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
+              onPressAuthor={() => navigation.navigate('PublicProfile', { profileId: item.profile_id })}
               onToggleLike={() => handleToggleLike(item)}
             />
           )}
@@ -205,11 +207,13 @@ function FeedCard({
   post,
   currentUserId,
   onPress,
+  onPressAuthor,
   onToggleLike,
 }: {
   post: FeedPostRow;
   currentUserId: string | undefined;
   onPress: () => void;
+  onPressAuthor: () => void;
   onToggleLike: () => void;
 }) {
   const author = post.profiles;
@@ -219,16 +223,8 @@ function FeedCard({
 
   return (
     <TouchableOpacity activeOpacity={0.9} onPress={onPress} className="mb-6 px-4">
-      <View className="flex-row items-center mb-3">
-        {author.avatar_url ? (
-          <Image source={{ uri: author.avatar_url }} className="w-9 h-9 rounded-full mr-3" />
-        ) : (
-          <View className="w-9 h-9 rounded-full bg-brand-primary items-center justify-center mr-3">
-            <Text className="text-white text-sm font-bold">
-              {(author.display_name ?? author.username)[0].toUpperCase()}
-            </Text>
-          </View>
-        )}
+      <TouchableOpacity activeOpacity={0.7} onPress={onPressAuthor} className="flex-row items-center mb-3">
+        <Avatar uri={author.avatar_url} name={author.display_name ?? author.username} className="mr-3" />
         <View>
           <Text className="text-sm font-semibold text-gray-900">
             {author.display_name ?? author.username}
@@ -237,7 +233,7 @@ function FeedCard({
             {new Date(post.created_at).toLocaleDateString()}
           </Text>
         </View>
-      </View>
+      </TouchableOpacity>
 
       <FeedMedia post={post} />
 

@@ -12,6 +12,7 @@ export type OnboardingStackParamList = {
 
 export type MainTabParamList = {
   Feed: undefined;
+  Connections: undefined;
   MyProfile: undefined;
   Messages: undefined;
 };

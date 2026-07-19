@@ -1,6 +1,32 @@
 export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced' | 'professional';
 export type MediaType = 'image' | 'audio' | 'video';
+// 'declined' is a dead enum value going forward — declining/removing a connection is
+// always a DELETE, never a status update. Kept here only because the DB column still
+// allows it; no code path should ever set status to 'declined'. See CONVENTIONS.md.
 export type ConnectionStatus = 'pending' | 'accepted' | 'declined';
+export type AvailabilityStatus =
+  | 'looking_for_band'
+  | 'available_for_session_work'
+  | 'open_to_auditions'
+  | 'forming_band'
+  | 'open_to_collabs'
+  | 'not_currently_looking';
+
+export const SKILL_LEVELS: { value: ExperienceLevel; label: string }[] = [
+  { value: 'beginner', label: 'Beginner' },
+  { value: 'intermediate', label: 'Intermediate' },
+  { value: 'advanced', label: 'Advanced' },
+  { value: 'professional', label: 'Pro' },
+];
+
+export const AVAILABILITY_STATUSES: { value: AvailabilityStatus; label: string }[] = [
+  { value: 'looking_for_band', label: 'Looking for a band' },
+  { value: 'available_for_session_work', label: 'Available for session work' },
+  { value: 'open_to_auditions', label: 'Open to auditions' },
+  { value: 'forming_band', label: 'Forming a band' },
+  { value: 'open_to_collabs', label: 'Open to collabs' },
+  { value: 'not_currently_looking', label: 'Not currently looking' },
+];
 
 export interface Profile {
   id: string;
@@ -13,6 +39,7 @@ export interface Profile {
   avatar_url: string | null;
   intro_media_url: string | null;
   intro_media_type: MediaType | null;
+  availability_statuses: AvailabilityStatus[];
   created_at: string;
   updated_at: string;
 }
@@ -74,6 +101,32 @@ export interface Connection {
   status: ConnectionStatus;
   created_at: string;
   updated_at: string;
+}
+
+// The four states the connect button / connection UI can be in, from a given
+// viewer's perspective — resolved by src/lib/connections.ts, the single place
+// this logic lives.
+export type ConnectionStatusValue = 'none' | 'pending_sent' | 'pending_received' | 'accepted';
+
+export interface ConnectionStatusInfo {
+  status: ConnectionStatusValue;
+  // The connections.id needed to act on the relationship (accept/cancel/decline/remove).
+  // null only when status is 'none' (no row exists yet).
+  connectionId: string | null;
+}
+
+export interface ProfileSummary {
+  id: string;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+}
+
+// A row in one of the Connections screen's three lists — the connection id
+// plus whichever profile is the "other" party from the viewer's perspective.
+export interface ConnectionListItem {
+  id: string;
+  otherProfile: ProfileSummary;
 }
 
 export interface Message {
