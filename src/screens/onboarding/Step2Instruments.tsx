@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -8,18 +8,11 @@ import {
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { supabase } from '../../lib/supabase';
-import type { Instrument, ExperienceLevel } from '../../lib/types';
+import { SKILL_LEVELS, type Instrument, type ExperienceLevel } from '../../lib/types';
 import type { OnboardingStackParamList } from '../../navigation/types';
 import { useOnboarding } from '../../navigation/OnboardingContext';
 
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'Step2'>;
-
-const SKILL_LEVELS: { value: ExperienceLevel; label: string }[] = [
-  { value: 'beginner', label: 'Beginner' },
-  { value: 'intermediate', label: 'Intermediate' },
-  { value: 'advanced', label: 'Advanced' },
-  { value: 'professional', label: 'Pro' },
-];
 
 export default function Step2Instruments({ navigation }: Props) {
   const { draft, setDraft } = useOnboarding();

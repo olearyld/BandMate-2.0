@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,6 @@ import {
   ScrollView,
   Image,
   Alert,
-  Platform,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { supabase } from '../../lib/supabase';
@@ -20,7 +19,7 @@ import type { ExperienceLevel } from '../../lib/types';
 
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'Step4'>;
 
-export default function Step4Media({ navigation }: Props) {
+export default function Step4Media(_props: Props) {
   const { draft } = useOnboarding();
   const { refreshProfile } = useAppContext();
   const [bio, setBio] = useState(draft.bio ?? '');

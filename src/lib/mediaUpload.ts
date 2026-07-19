@@ -42,11 +42,11 @@ export async function pickImage(): Promise<PickedMedia | null> {
   if (result.canceled || !result.assets[0]) return null;
 
   const asset = result.assets[0];
-  const uri = await compressImage(asset.uri, asset.width, asset.height);
+  const uri = await compressImage(asset.uri, asset.width);
   return { uri, type: 'image' };
 }
 
-async function compressImage(uri: string, width: number, height: number): Promise<string> {
+async function compressImage(uri: string, width: number): Promise<string> {
   let context = ImageManipulator.manipulate(uri);
   if (width > MAX_IMAGE_DIMENSION) {
     context = context.resize({ width: MAX_IMAGE_DIMENSION });
