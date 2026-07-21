@@ -506,16 +506,15 @@ describe('RLS policies', () => {
   });
 
   it('B can delete their own push_tokens row', async () => {
-    const { data: inserted, error: insertErr } = await clientB
-      .from('push_tokens')
-      .insert({ profile_id: userB, expo_push_token: `ExponentPushToken[rls-test-delete-${RUN_ID}]`, platform: 'ios' })
-      .select('id')
-      .single();
-    expect(insertErr).toBeFalsy();
-    const { error: deleteErr } = await clientB.from('push_tokens').delete().eq('id', inserted!.id);
-    expect(deleteErr).toBeFalsy();
-    const { data: check } = await clientB.from('push_tokens').select('id').eq('id', inserted!.id).maybeSingle();
-    expect(check).toBeNull();
+    // withDisposablePushToken's own finally-block delete becomes a harmless
+    // no-op once the row is already gone — no need for a bespoke insert/delete
+    // outside the shared helper just because this test's subject is delete itself.
+    await withDisposablePushToken(clientB, userB, async (tokenId) => {
+      const { error: deleteErr } = await clientB.from('push_tokens').delete().eq('id', tokenId);
+      expect(deleteErr).toBeFalsy();
+      const { data: check } = await clientB.from('push_tokens').select('id').eq('id', tokenId).maybeSingle();
+      expect(check).toBeNull();
+    });
   });
 
   it('A cannot insert a push_tokens row for B', async () => {
