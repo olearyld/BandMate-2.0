@@ -402,6 +402,41 @@ export type Database = {
           },
         ]
       }
+      push_tokens: {
+        Row: {
+          created_at: string
+          expo_push_token: string
+          id: string
+          platform: string
+          profile_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          expo_push_token: string
+          id?: string
+          platform: string
+          profile_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          expo_push_token?: string
+          id?: string
+          platform?: string
+          profile_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_tokens_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -428,6 +463,7 @@ export type Database = {
           username: string
         }[]
       }
+      get_push_webhook_secret: { Args: never; Returns: string }
     }
     Enums: {
       availability_status:

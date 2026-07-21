@@ -32,7 +32,13 @@
       "expo-video",
       "expo-audio",
       "expo-asset",
-      "expo-file-system"
+      "expo-file-system",
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "default"
+        }
+      ]
     ]
   }
 }

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { registerPushToken, subscribeToPushTokenChanges } from '../lib/pushNotifications';
 import type { Session } from '@supabase/supabase-js';
 
 type AppState = 'loading' | 'unauthenticated' | 'onboarding' | 'authenticated';
@@ -75,6 +76,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       subscription.unsubscribe();
     };
   }, [resolveState]);
+
+  // Registers (or re-registers) this device's push token whenever the app
+  // transitions to authenticated — covers both "just finished onboarding"
+  // and "existing user signed in on a new device", per Task 3. Deliberately
+  // not hooked to app launch (no session/profile exists to register against
+  // yet) or to one specific onboarding screen (which would miss the
+  // returning-user case). See src/lib/pushNotifications.ts.
+  useEffect(() => {
+    if (appState !== 'authenticated' || !session) return;
+    const profileId = session.user.id;
+    registerPushToken(profileId).catch(() => {});
+    return subscribeToPushTokenChanges(profileId);
+  }, [appState, session]);
 
   return (
     <AppContext.Provider value={{ appState, session, refreshProfile }}>

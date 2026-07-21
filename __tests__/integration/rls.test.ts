@@ -21,27 +21,13 @@
  * until exploited — treat it as a stop-everything bug, not a normal test
  * failure.
  */
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import type { WebSocketLikeConstructor } from '@supabase/realtime-js';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
-import WebSocket from 'ws';
 import type { Database } from '../../src/lib/database.types';
+import { FIXTURE_PASSWORD, insertConnectionWithRetry, makeClient, withDisposableConnection } from './testHelpers';
 
 jest.setTimeout(30000);
 
-// Deliberately TEST_SUPABASE_*, not EXPO_PUBLIC_SUPABASE_* — this suite targets
-// a dedicated test project (never the app's production project). See CONVENTIONS.md.
-const SUPABASE_URL = process.env.TEST_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.TEST_SUPABASE_ANON_KEY!;
-
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  throw new Error(
-    'TEST_SUPABASE_URL / TEST_SUPABASE_ANON_KEY are not set. ' +
-      'Integration tests need a real .env — see jest.setup.js.'
-  );
-}
-
-const PASSWORD = 'BandmateTest!23456';
 const RUN_ID = `${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
 
 const FIXTURES = {
@@ -50,16 +36,6 @@ const FIXTURES = {
   c: { email: 'bandmate.rls.fixture.c@gmail.com', username: 'rls_fixture_c' },
 } as const;
 
-function makeClient(): SupabaseClient<Database> {
-  // Node 20 has no native WebSocket, and createClient() eagerly initializes the
-  // Realtime client — supply `ws` as the transport so client creation doesn't throw.
-  // These tests don't use Realtime at all, this is purely to satisfy init.
-  return createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    realtime: { transport: WebSocket as WebSocketLikeConstructor },
-  });
-}
-
 /** Sign in to a fixture account, bootstrapping it (signUp once) if it doesn't exist yet. */
 async function signInOrBootstrapFixture(
   client: SupabaseClient<Database>,
@@ -67,13 +43,13 @@ async function signInOrBootstrapFixture(
 ): Promise<string> {
   const { data: signInData, error: signInError } = await client.auth.signInWithPassword({
     email: fixture.email,
-    password: PASSWORD,
+    password: FIXTURE_PASSWORD,
   });
   if (!signInError && signInData.user) return signInData.user.id;
 
   const { data: signUpData, error: signUpError } = await client.auth.signUp({
     email: fixture.email,
-    password: PASSWORD,
+    password: FIXTURE_PASSWORD,
   });
   if (signUpError || !signUpData.user) {
     throw new Error(`fixture bootstrap signUp(${fixture.email}) failed: ${signUpError?.message}`);
@@ -87,7 +63,7 @@ async function signInOrBootstrapFixture(
 
   const { error: reSignInError } = await client.auth.signInWithPassword({
     email: fixture.email,
-    password: PASSWORD,
+    password: FIXTURE_PASSWORD,
   });
   if (reSignInError) {
     throw new Error(`fixture bootstrap signIn(${fixture.email}) failed: ${reSignInError.message}`);
@@ -102,50 +78,6 @@ async function signInOrBootstrapFixture(
   }
 
   return userId;
-}
-
-/**
- * Inserts a connection, runs `fn(connectionId)`, then always deletes it
- * (regardless of what fn does or throws) — used for the new positive-path
- * connection tests below so they don't touch the shared, cross-run-reused
- * B<->C fixture connection (`connectionId`) and don't leave dangling rows
- * that would trip connections_unique_pair on the next run.
- *
- * Retries on a connections_unique_pair collision (23505) rather than
- * failing outright — only 3 fixture accounts exist (A/B/C), so with
- * messages.test.ts also exercising A<->B/A<->C pairs in a separate Jest
- * worker (Jest parallelizes across integration test files by default),
- * two files briefly wanting the same pair is expected contention, not a bug.
- */
-async function withDisposableConnection(
-  insertingClient: SupabaseClient<Database>,
-  requesterId: string,
-  recipientId: string,
-  fn: (connectionId: string) => Promise<void>
-): Promise<void> {
-  let connectionId: string | null = null;
-  for (let attempt = 0; attempt < 6 && !connectionId; attempt++) {
-    const { data: conn, error } = await insertingClient
-      .from('connections')
-      .insert({ requester_id: requesterId, recipient_id: recipientId })
-      .select('id')
-      .single();
-    if (!error && conn) {
-      connectionId = conn.id;
-    } else if ((error as { code?: string } | null)?.code === '23505') {
-      await new Promise((r) => setTimeout(r, 500 + attempt * 500));
-    } else {
-      throw new Error(`disposable connection setup failed: ${error?.message}`);
-    }
-  }
-  if (!connectionId) {
-    throw new Error(`disposable connection setup failed: persistent contention on ${requesterId}<->${recipientId}`);
-  }
-  try {
-    await fn(connectionId);
-  } finally {
-    await insertingClient.from('connections').delete().eq('id', connectionId);
-  }
 }
 
 const READ_ANY_AUTHENTICATED_TABLES = [
@@ -224,27 +156,7 @@ describe('RLS policies', () => {
     // check only runs at insert time), and this avoids introducing any new
     // persistent fixture state. See messages.test.ts for the full new
     // insert/update/trigger/Realtime coverage this policy needs.
-    //
-    // Only 3 fixture accounts exist, and messages.test.ts also races for
-    // this same A<->C pair (Jest runs integration files in parallel
-    // workers) — retry on a connections_unique_pair collision (23505)
-    // rather than failing outright; this is expected contention, not a bug.
-    let tempConnId: string | null = null;
-    for (let attempt = 0; attempt < 6 && !tempConnId; attempt++) {
-      const { data: tempConn, error: tempConnErr } = await clientA
-        .from('connections')
-        .insert({ requester_id: userA, recipient_id: userC })
-        .select('id')
-        .single();
-      if (!tempConnErr && tempConn) {
-        tempConnId = tempConn.id;
-      } else if ((tempConnErr as { code?: string } | null)?.code === '23505') {
-        await new Promise((r) => setTimeout(r, 500 + attempt * 500));
-      } else {
-        throw new Error(`temp connection setup failed: ${tempConnErr?.message}`);
-      }
-    }
-    if (!tempConnId) throw new Error('temp connection setup failed: persistent contention on A<->C pair');
+    const tempConnId = await insertConnectionWithRetry(clientA, userA, userC);
     const { error: tempAcceptErr } = await clientC
       .from('connections')
       .update({ status: 'accepted' })
@@ -529,6 +441,99 @@ describe('RLS policies', () => {
     await clientA.from('comments').delete().eq('id', commentId);
     const { data } = await clientA.from('comments').select('id').eq('id', commentId).maybeSingle();
     expect(data).toBeTruthy();
+  });
+
+  // ------------------------------------------------------------- push_tokens
+  // Phase 5b. No shared/persistent fixture row here (unlike postBId/likeId/
+  // commentId above) — every case below uses its own disposable row, since
+  // push_tokens has no public-read dimension to test alongside the owner-only
+  // one (contrast cities/availability_statuses' read-any-write-own split).
+  async function withDisposablePushToken(
+    client: SupabaseClient<Database>,
+    profileId: string,
+    fn: (tokenId: string) => Promise<void>
+  ): Promise<void> {
+    const { data, error } = await client
+      .from('push_tokens')
+      .insert({ profile_id: profileId, expo_push_token: `ExponentPushToken[rls-test-${RUN_ID}]`, platform: 'ios' })
+      .select('id')
+      .single();
+    if (error || !data) throw new Error(`disposable push_token setup failed: ${error?.message}`);
+    try {
+      await fn(data.id);
+    } finally {
+      await client.from('push_tokens').delete().eq('id', data.id);
+    }
+  }
+
+  it('B can insert and read their own push_tokens row', async () => {
+    await withDisposablePushToken(clientB, userB, async (tokenId) => {
+      const { data, error } = await clientB.from('push_tokens').select('id').eq('id', tokenId).maybeSingle();
+      expect(error).toBeFalsy();
+      expect(data?.id).toBe(tokenId);
+    });
+  });
+
+  it("A cannot read B's push_tokens row", async () => {
+    await withDisposablePushToken(clientB, userB, async (tokenId) => {
+      const { data } = await clientA.from('push_tokens').select('id').eq('id', tokenId).maybeSingle();
+      expect(data).toBeNull();
+    });
+  });
+
+  it('B can update their own push_tokens row', async () => {
+    await withDisposablePushToken(clientB, userB, async (tokenId) => {
+      const { error } = await clientB.from('push_tokens').update({ platform: 'android' }).eq('id', tokenId);
+      expect(error).toBeFalsy();
+      const { data } = await clientB.from('push_tokens').select('platform').eq('id', tokenId).single();
+      expect(data?.platform).toBe('android');
+    });
+  });
+
+  it("A cannot update B's push_tokens row", async () => {
+    await withDisposablePushToken(clientB, userB, async (tokenId) => {
+      const { data } = await clientA.from('push_tokens').update({ platform: 'android' }).eq('id', tokenId).select();
+      expect(data ?? []).toHaveLength(0);
+    });
+  });
+
+  it("A cannot delete B's push_tokens row", async () => {
+    await withDisposablePushToken(clientB, userB, async (tokenId) => {
+      await clientA.from('push_tokens').delete().eq('id', tokenId);
+      const { data } = await clientB.from('push_tokens').select('id').eq('id', tokenId).maybeSingle();
+      expect(data).toBeTruthy();
+    });
+  });
+
+  it('B can delete their own push_tokens row', async () => {
+    const { data: inserted, error: insertErr } = await clientB
+      .from('push_tokens')
+      .insert({ profile_id: userB, expo_push_token: `ExponentPushToken[rls-test-delete-${RUN_ID}]`, platform: 'ios' })
+      .select('id')
+      .single();
+    expect(insertErr).toBeFalsy();
+    const { error: deleteErr } = await clientB.from('push_tokens').delete().eq('id', inserted!.id);
+    expect(deleteErr).toBeFalsy();
+    const { data: check } = await clientB.from('push_tokens').select('id').eq('id', inserted!.id).maybeSingle();
+    expect(check).toBeNull();
+  });
+
+  it('A cannot insert a push_tokens row for B', async () => {
+    const { error } = await clientA
+      .from('push_tokens')
+      .insert({ profile_id: userB, expo_push_token: `ExponentPushToken[rls-test-forge-${RUN_ID}]`, platform: 'ios' });
+    expect(error).toBeTruthy();
+  });
+
+  it('unauthenticated cannot read or insert push_tokens', async () => {
+    await withDisposablePushToken(clientB, userB, async (tokenId) => {
+      const { data } = await anonClient.from('push_tokens').select('id').eq('id', tokenId).maybeSingle();
+      expect(data).toBeNull();
+    });
+    const { error } = await anonClient
+      .from('push_tokens')
+      .insert({ profile_id: userB, expo_push_token: `ExponentPushToken[rls-test-anon-${RUN_ID}]`, platform: 'ios' });
+    expect(error).toBeTruthy();
   });
 
   // ----------------------------------------------------------- unauthenticated
