@@ -6,6 +6,7 @@ export interface OnboardingDraft {
   display_name?: string | null;
   location_city?: string | null;
   location_state?: string | null;
+  matched_city_id?: string | null;
   instruments?: Record<number, ExperienceLevel>;
   genres?: number[];
   bio?: string | null;

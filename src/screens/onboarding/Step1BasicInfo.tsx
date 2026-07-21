@@ -13,6 +13,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { supabase } from '../../lib/supabase';
 import type { OnboardingStackParamList } from '../../navigation/types';
 import { useOnboarding } from '../../navigation/OnboardingContext';
+import CityPicker, { type CityPickerValue } from '../../components/CityPicker';
 
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'Step1'>;
 
@@ -20,8 +21,11 @@ export default function Step1BasicInfo({ navigation }: Props) {
   const { draft, setDraft } = useOnboarding();
   const [username, setUsername] = useState(draft.username ?? '');
   const [displayName, setDisplayName] = useState(draft.display_name ?? '');
-  const [city, setCity] = useState(draft.location_city ?? '');
-  const [state, setState] = useState(draft.location_state ?? '');
+  const [location, setLocation] = useState<CityPickerValue>({
+    city: draft.location_city ?? null,
+    state: draft.location_state ?? null,
+    cityId: draft.matched_city_id ?? null,
+  });
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
 
@@ -46,8 +50,9 @@ export default function Step1BasicInfo({ navigation }: Props) {
       ...draft,
       username: trimmed,
       display_name: displayName.trim() || null,
-      location_city: city.trim() || null,
-      location_state: state.trim() || null,
+      location_city: location.city?.trim() || null,
+      location_state: location.state?.trim() || null,
+      matched_city_id: location.cityId,
     });
     navigation.navigate('Step2');
   }
@@ -91,23 +96,7 @@ export default function Step1BasicInfo({ navigation }: Props) {
           onChangeText={setDisplayName}
         />
 
-        <Text className="text-sm font-medium text-gray-700 mb-1">City</Text>
-        <TextInput
-          className="border border-gray-300 rounded-lg px-4 py-3 text-base text-gray-900 mb-4"
-          placeholder="e.g. Austin"
-          placeholderTextColor="#9CA3AF"
-          value={city}
-          onChangeText={setCity}
-        />
-
-        <Text className="text-sm font-medium text-gray-700 mb-1">State</Text>
-        <TextInput
-          className="border border-gray-300 rounded-lg px-4 py-3 text-base text-gray-900 mb-8"
-          placeholder="e.g. TX"
-          placeholderTextColor="#9CA3AF"
-          value={state}
-          onChangeText={setState}
-        />
+        <CityPicker value={location} onChange={setLocation} />
 
         <TouchableOpacity
           className="bg-brand-primary rounded-lg py-4 items-center"

@@ -218,16 +218,30 @@ async function createSeedUsers(admin, count) {
   return users;
 }
 
-async function createProfiles(admin, users) {
-  const rows = users.map((u) => ({
-    id: u.id,
-    username: `seed_user_${u.index}`,
-    display_name: faker.person.fullName(),
-    bio: randomLongformText({ emptyChance: 0.15, shortChance: 0.3, longChance: 0.85 }),
-    location_city: faker.location.city(),
-    location_state: faker.location.state({ abbreviated: true }),
-    experience_level: pick(EXPERIENCE_LEVELS),
-  }));
+/**
+ * Phase 4a: assigns roughly half of seeded profiles a real, matched city
+ * (location_city/state + matched_city_id all sourced from the same `cities`
+ * row) and leaves the rest on a faker-generated fake city with no match --
+ * the first two users are pinned to matched/unmatched respectively so both
+ * cases are always present regardless of random luck, since Phase 4b's
+ * radius search and "no match" fallback both need real data to test
+ * against. See CONVENTIONS.md.
+ */
+async function createProfiles(admin, users, cities) {
+  const rows = users.map((u, i) => {
+    const matchReal = cities.length > 0 && (i === 0 || (i !== 1 && Math.random() < 0.5));
+    const city = matchReal ? pick(cities) : null;
+    return {
+      id: u.id,
+      username: `seed_user_${u.index}`,
+      display_name: faker.person.fullName(),
+      bio: randomLongformText({ emptyChance: 0.15, shortChance: 0.3, longChance: 0.85 }),
+      location_city: city ? city.city : faker.location.city(),
+      location_state: city ? city.state : faker.location.state({ abbreviated: true }),
+      matched_city_id: city ? city.id : null,
+      experience_level: pick(EXPERIENCE_LEVELS),
+    };
+  });
   const { error } = await admin.from('profiles').insert(rows);
   if (error) throw new Error(`insert profiles failed: ${error.message}`);
   return rows;
@@ -377,6 +391,8 @@ async function seed(admin) {
   if (instrErr) throw new Error(`fetch instruments failed: ${instrErr.message}`);
   const { data: genres, error: genreErr } = await admin.from('genres').select('id, name');
   if (genreErr) throw new Error(`fetch genres failed: ${genreErr.message}`);
+  const { data: cities, error: citiesErr } = await admin.from('cities').select('id, city, state');
+  if (citiesErr) throw new Error(`fetch cities failed: ${citiesErr.message}`);
 
   const userCount = randomInt(...USER_COUNT_RANGE);
   const postCount = randomInt(...POST_COUNT_RANGE);
@@ -385,7 +401,8 @@ async function seed(admin) {
   const users = await createSeedUsers(admin, userCount);
 
   console.log('Creating profiles...');
-  await createProfiles(admin, users);
+  const profileRows = await createProfiles(admin, users, cities ?? []);
+  const matchedCityCount = profileRows.filter((r) => r.matched_city_id).length;
 
   console.log('Assigning instruments/genres...');
   const tagCounts = await createProfileTags(admin, users, instruments, genres);
@@ -407,6 +424,8 @@ async function seed(admin) {
     posts: posts.length,
     profileInstruments: tagCounts.instrumentRows,
     profileGenres: tagCounts.genreRows,
+    matchedCities: matchedCityCount,
+    unmatchedCities: users.length - matchedCityCount,
     connectionsPending: connectionCounts.pending,
     connectionsAccepted: connectionCounts.accepted,
     likes: likeCount,
@@ -444,6 +463,8 @@ async function main() {
   console.log(`  Users created:      ${counts.users}`);
   console.log(`  Profile-instrument links: ${counts.profileInstruments}`);
   console.log(`  Profile-genre links:      ${counts.profileGenres}`);
+  console.log(`  Profiles matched to a city:   ${counts.matchedCities}`);
+  console.log(`  Profiles unmatched (fallback): ${counts.unmatchedCities}`);
   console.log(`  Connections (pending):    ${counts.connectionsPending}`);
   console.log(`  Connections (accepted):   ${counts.connectionsAccepted}`);
   console.log(`  Posts created:      ${counts.posts}`);

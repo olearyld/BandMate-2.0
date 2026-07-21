@@ -22,6 +22,7 @@ import {
 } from '../../lib/types';
 import ProfileBody from '../../components/ProfileBody';
 import AudioPlayer from '../../components/AudioPlayer';
+import CityPicker, { type CityPickerValue } from '../../components/CityPicker';
 
 /** Toggles `value`'s membership in a Set, for use as an onPress handler factory. */
 function toggleInSet<T>(setter: Dispatch<SetStateAction<Set<T>>>) {
@@ -155,8 +156,11 @@ function EditProfileForm({
 }) {
   const [displayName, setDisplayName] = useState(profile.display_name ?? '');
   const [bio, setBio] = useState(profile.bio ?? '');
-  const [city, setCity] = useState(profile.location_city ?? '');
-  const [state, setState] = useState(profile.location_state ?? '');
+  const [location, setLocation] = useState<CityPickerValue>({
+    city: profile.location_city,
+    state: profile.location_state,
+    cityId: profile.matched_city_id,
+  });
 
   const existingInstruments: Record<number, ExperienceLevel> = {};
   profile.profile_instruments.forEach((pi) => {
@@ -254,8 +258,9 @@ function EditProfileForm({
         .update({
           display_name: displayName.trim() || null,
           bio: bio.trim() || null,
-          location_city: city.trim() || null,
-          location_state: state.trim() || null,
+          location_city: location.city?.trim() || null,
+          location_state: location.state?.trim() || null,
+          matched_city_id: location.cityId,
           intro_media_url: introMediaUrl,
           intro_media_type: introMediaType,
           availability_statuses: Array.from(selectedAvailability),
@@ -334,11 +339,7 @@ function EditProfileForm({
         <Text className="text-sm font-medium text-gray-700 mb-1">Display name</Text>
         <TextInput className="border border-gray-300 rounded-lg px-4 py-3 mb-4 text-base text-gray-900" value={displayName} onChangeText={setDisplayName} placeholder="Your name" placeholderTextColor="#9CA3AF" />
 
-        <Text className="text-sm font-medium text-gray-700 mb-1">City</Text>
-        <TextInput className="border border-gray-300 rounded-lg px-4 py-3 mb-4 text-base text-gray-900" value={city} onChangeText={setCity} placeholder="City" placeholderTextColor="#9CA3AF" />
-
-        <Text className="text-sm font-medium text-gray-700 mb-1">State</Text>
-        <TextInput className="border border-gray-300 rounded-lg px-4 py-3 mb-4 text-base text-gray-900" value={state} onChangeText={setState} placeholder="State" placeholderTextColor="#9CA3AF" />
+        <CityPicker value={location} onChange={setLocation} />
 
         <Text className="text-sm font-medium text-gray-700 mb-1">Bio</Text>
         <TextInput className="border border-gray-300 rounded-lg px-4 py-3 mb-6 text-base text-gray-900" value={bio} onChangeText={setBio} placeholder="About you..." placeholderTextColor="#9CA3AF" multiline numberOfLines={4} textAlignVertical="top" style={{ minHeight: 96 }} />

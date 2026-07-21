@@ -136,6 +136,7 @@ const READ_ANY_AUTHENTICATED_TABLES = [
   'profiles',
   'instruments',
   'genres',
+  'cities',
   'profile_instruments',
   'profile_genres',
   'media_posts',
@@ -406,6 +407,39 @@ describe('RLS policies', () => {
 
     // Reset so this doesn't leave fixture state mutated for other runs.
     await clientB.from('profiles').update({ availability_statuses: [] }).eq('id', userB);
+  });
+
+  // ------------------------------------------------------------------ cities
+  it('A CAN read cities (public-read reference-data pattern, same as instruments/genres)', async () => {
+    const { data, error } = await clientA.from('cities').select('*').limit(1);
+    expect(error).toBeFalsy();
+    expect(data).toBeTruthy();
+  });
+
+  it('authenticated INSERT into cities is rejected (no write policy for any client role)', async () => {
+    const { error } = await clientA
+      .from('cities')
+      .insert({ city: `RLS Test City ${RUN_ID}`, state: 'ZZ', lat: 0, lng: 0 });
+    expect(error).toBeTruthy();
+  });
+
+  it('authenticated UPDATE on cities is rejected', async () => {
+    const { data: existing } = await clientA.from('cities').select('id, lat').limit(1).single();
+    const { data } = await clientA.from('cities').update({ lat: 0 }).eq('id', existing!.id).select();
+    expect(data ?? []).toHaveLength(0);
+  });
+
+  it('authenticated DELETE on cities is rejected', async () => {
+    const { data: existing } = await clientA.from('cities').select('id').limit(1).single();
+    const { data } = await clientA.from('cities').delete().eq('id', existing!.id).select();
+    expect(data ?? []).toHaveLength(0);
+  });
+
+  it('unauthenticated INSERT into cities is rejected', async () => {
+    const { error } = await anonClient
+      .from('cities')
+      .insert({ city: `RLS Test City Anon ${RUN_ID}`, state: 'ZZ', lat: 0, lng: 0 });
+    expect(error).toBeTruthy();
   });
 
   // ---------------------------------------------------------------- messages

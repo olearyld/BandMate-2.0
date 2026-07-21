@@ -35,6 +35,7 @@ export interface Profile {
   bio: string | null;
   location_city: string | null;
   location_state: string | null;
+  matched_city_id: string | null;
   experience_level: ExperienceLevel | null;
   avatar_url: string | null;
   intro_media_url: string | null;
@@ -52,6 +53,17 @@ export interface Instrument {
 export interface Genre {
   id: number;
   name: string;
+}
+
+// A row in the curated cities reference table (Phase 4a) — public-read,
+// maintained by migrations/direct seed SQL only, never written to from the
+// app. lat/lng are city-center approximations, not precise geocodes.
+export interface City {
+  id: string;
+  city: string;
+  state: string;
+  lat: number;
+  lng: number;
 }
 
 export interface ProfileInstrument {
@@ -175,6 +187,7 @@ export interface ProfileInsert {
   bio?: string | null;
   location_city?: string | null;
   location_state?: string | null;
+  matched_city_id?: string | null;
   experience_level?: ExperienceLevel | null;
   avatar_url?: string | null;
   intro_media_url?: string | null;

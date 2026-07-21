@@ -87,6 +87,7 @@ export default function Step4Media(_props: Props) {
         display_name: draft.display_name ?? null,
         location_city: draft.location_city ?? null,
         location_state: draft.location_state ?? null,
+        matched_city_id: draft.matched_city_id ?? null,
         bio: bio.trim() || null,
         intro_media_url: introMediaUrl,
         intro_media_type: introMediaType,

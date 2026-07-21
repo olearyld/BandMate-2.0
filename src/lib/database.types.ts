@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      cities: {
+        Row: {
+          city: string
+          created_at: string
+          id: string
+          lat: number
+          lng: number
+          state: string
+        }
+        Insert: {
+          city: string
+          created_at?: string
+          id?: string
+          lat: number
+          lng: number
+          state: string
+        }
+        Update: {
+          city?: string
+          created_at?: string
+          id?: string
+          lat?: number
+          lng?: number
+          state?: string
+        }
+        Relationships: []
+      }
       comments: {
         Row: {
           body: string
@@ -325,6 +352,7 @@ export type Database = {
           intro_media_url: string | null
           location_city: string | null
           location_state: string | null
+          matched_city_id: string | null
           updated_at: string
           username: string
         }
@@ -342,6 +370,7 @@ export type Database = {
           intro_media_url?: string | null
           location_city?: string | null
           location_state?: string | null
+          matched_city_id?: string | null
           updated_at?: string
           username: string
         }
@@ -359,10 +388,19 @@ export type Database = {
           intro_media_url?: string | null
           location_city?: string | null
           location_state?: string | null
+          matched_city_id?: string | null
           updated_at?: string
           username?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_matched_city_id_fkey"
+            columns: ["matched_city_id"]
+            isOneToOne: false
+            referencedRelation: "cities"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
