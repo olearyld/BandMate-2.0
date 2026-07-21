@@ -119,6 +119,10 @@ export default function ConnectionsScreen({ navigation }: Props) {
     navigation.navigate('PublicProfile', { profileId });
   }
 
+  function goToThread(item: ConnectionListItem) {
+    navigation.navigate('Thread', { otherUserId: item.otherProfile.id, otherProfile: item.otherProfile });
+  }
+
   const sections: { key: Section; label: string; count: number }[] = [
     { key: 'requests', label: 'Requests', count: requests.length },
     { key: 'sent', label: 'Sent', count: sent.length },
@@ -203,13 +207,22 @@ export default function ConnectionsScreen({ navigation }: Props) {
                       <Text className="text-gray-600 text-xs font-semibold">Cancel</Text>
                     </TouchableOpacity>
                   ) : (
-                    <TouchableOpacity
-                      className="border border-red-200 px-3 py-1.5 rounded-full"
-                      disabled={busyId === item.id}
-                      onPress={() => handleRemove(item)}
-                    >
-                      <Text className="text-red-600 text-xs font-semibold">Remove</Text>
-                    </TouchableOpacity>
+                    <View className="flex-row gap-2">
+                      <TouchableOpacity
+                        className="bg-brand-primary px-3 py-1.5 rounded-full"
+                        disabled={busyId === item.id}
+                        onPress={() => goToThread(item)}
+                      >
+                        <Text className="text-white text-xs font-semibold">Message</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        className="border border-red-200 px-3 py-1.5 rounded-full"
+                        disabled={busyId === item.id}
+                        onPress={() => handleRemove(item)}
+                      >
+                        <Text className="text-red-600 text-xs font-semibold">Remove</Text>
+                      </TouchableOpacity>
+                    </View>
                   )
                 }
               />

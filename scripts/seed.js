@@ -315,6 +315,48 @@ async function createConnections(admin, users) {
   };
 }
 
+/**
+ * Phase 5a: a realistic, mixed read/unread message thread between the two
+ * accounts createConnections() guarantees an *accepted* connection for
+ * (u0<->u3) — messages_insert_own now requires one, so this can't be
+ * scattered across random pairs the way createConnections() does for the
+ * rest of its rows; it has to target the one pair known to be accepted.
+ * The last message in the thread (from u3) is left unread (read_at null)
+ * so u0's Messages tab badge and ConversationsListScreen unread state are
+ * both reachable without hand-crafting data, same "guarantee it for the
+ * most-likely-to-be-manually-tested account" approach Phase 4a used for
+ * matched/unmatched cities.
+ */
+async function createMessages(admin, u0, u3) {
+  const lines = [
+    { from: u0, content: "Hey, saw your profile — you play bass right?" },
+    { from: u3, content: 'Yeah! Looking for a band actually.' },
+    { from: u0, content: "Nice, we're looking for someone for weekend gigs." },
+    { from: u3, content: 'That sounds great, what genre?' },
+    { from: u0, content: 'Mostly rock/blues, some original stuff too.' },
+    { from: u3, content: "I'm down, when do you usually rehearse?" },
+    { from: u0, content: 'Tuesdays and Thursdays evenings usually.' },
+    { from: u3, content: 'Works for me, see you there!' },
+  ];
+  const now = Date.now();
+  const rows = lines.map((line, i) => {
+    const senderId = line.from.id;
+    const recipientId = senderId === u0.id ? u3.id : u0.id;
+    const createdAt = new Date(now - (lines.length - i) * 3 * 60 * 1000); // 3 min apart, most recent near "now"
+    const isUnreadFromU3 = senderId === u3.id && i === lines.length - 1;
+    return {
+      sender_id: senderId,
+      recipient_id: recipientId,
+      content: line.content,
+      created_at: createdAt.toISOString(),
+      read_at: isUnreadFromU3 ? null : new Date(createdAt.getTime() + 30 * 1000).toISOString(),
+    };
+  });
+  const { error } = await admin.from('messages').insert(rows);
+  if (error) throw new Error(`insert messages failed: ${error.message}`);
+  return rows.length;
+}
+
 function randomTags() {
   const r = Math.random();
   if (r < 0.3) return null;
@@ -410,6 +452,11 @@ async function seed(admin) {
   console.log('Creating connections...');
   const connectionCounts = await createConnections(admin, users);
 
+  console.log('Creating messages...');
+  // createConnections() guarantees users[0]<->users[3] is accepted — the
+  // only pair messages_insert_own's connection gate will actually allow.
+  const messageCount = users.length >= 4 ? await createMessages(admin, users[0], users[3]) : 0;
+
   console.log(`Creating ${postCount} media_posts...`);
   const posts = await createPosts(admin, users, postCount);
 
@@ -428,6 +475,7 @@ async function seed(admin) {
     unmatchedCities: users.length - matchedCityCount,
     connectionsPending: connectionCounts.pending,
     connectionsAccepted: connectionCounts.accepted,
+    messages: messageCount,
     likes: likeCount,
     comments: commentCount,
   };
@@ -467,6 +515,7 @@ async function main() {
   console.log(`  Profiles unmatched (fallback): ${counts.unmatchedCities}`);
   console.log(`  Connections (pending):    ${counts.connectionsPending}`);
   console.log(`  Connections (accepted):   ${counts.connectionsAccepted}`);
+  console.log(`  Messages created:   ${counts.messages}`);
   console.log(`  Posts created:      ${counts.posts}`);
   console.log(`  Likes created:      ${counts.likes}`);
   console.log(`  Comments created:   ${counts.comments}`);

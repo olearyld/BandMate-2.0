@@ -167,6 +167,15 @@ export interface Message {
   created_at: string;
 }
 
+// A derived conversation (Phase 5a) — messages has no conversation_id; this is
+// grouped client-side by "other participant" from src/lib/messages.ts. See
+// CONVENTIONS.md for why (no group chat in the roadmap, 1:1 DMs only).
+export interface ConversationSummary {
+  otherProfile: ProfileSummary;
+  lastMessage: { content: string; senderId: string; createdAt: string };
+  unreadCount: number;
+}
+
 // Full profile with joined data, used in profile views.
 // Shape matches the select query: profile_instruments(skill_level, instruments(id, name))
 export interface FullProfile extends Profile {

@@ -110,6 +110,12 @@ async function signInOrBootstrapFixture(
  * connection tests below so they don't touch the shared, cross-run-reused
  * B<->C fixture connection (`connectionId`) and don't leave dangling rows
  * that would trip connections_unique_pair on the next run.
+ *
+ * Retries on a connections_unique_pair collision (23505) rather than
+ * failing outright — only 3 fixture accounts exist (A/B/C), so with
+ * messages.test.ts also exercising A<->B/A<->C pairs in a separate Jest
+ * worker (Jest parallelizes across integration test files by default),
+ * two files briefly wanting the same pair is expected contention, not a bug.
  */
 async function withDisposableConnection(
   insertingClient: SupabaseClient<Database>,
@@ -117,18 +123,28 @@ async function withDisposableConnection(
   recipientId: string,
   fn: (connectionId: string) => Promise<void>
 ): Promise<void> {
-  const { data: conn, error } = await insertingClient
-    .from('connections')
-    .insert({ requester_id: requesterId, recipient_id: recipientId })
-    .select('id')
-    .single();
-  if (error || !conn) {
-    throw new Error(`disposable connection setup failed: ${error?.message}`);
+  let connectionId: string | null = null;
+  for (let attempt = 0; attempt < 6 && !connectionId; attempt++) {
+    const { data: conn, error } = await insertingClient
+      .from('connections')
+      .insert({ requester_id: requesterId, recipient_id: recipientId })
+      .select('id')
+      .single();
+    if (!error && conn) {
+      connectionId = conn.id;
+    } else if ((error as { code?: string } | null)?.code === '23505') {
+      await new Promise((r) => setTimeout(r, 500 + attempt * 500));
+    } else {
+      throw new Error(`disposable connection setup failed: ${error?.message}`);
+    }
+  }
+  if (!connectionId) {
+    throw new Error(`disposable connection setup failed: persistent contention on ${requesterId}<->${recipientId}`);
   }
   try {
-    await fn(conn.id);
+    await fn(connectionId);
   } finally {
-    await insertingClient.from('connections').delete().eq('id', conn.id);
+    await insertingClient.from('connections').delete().eq('id', connectionId);
   }
 }
 
@@ -199,15 +215,53 @@ describe('RLS policies', () => {
       connectionId = conn.id;
     }
 
-    // messages has no DELETE policy either — each run adds one row (harmless, no
+    // Phase 5a gated messages_insert_own on an accepted connection between
+    // sender/recipient — B<->C (connectionId, above) is deliberately kept
+    // pending, so it can no longer back this fixture message. Create a
+    // throwaway A<->C connection just long enough to accept it and insert
+    // the message, then delete the connection — nothing about the message
+    // row depends on the connection continuing to exist afterward (the
+    // check only runs at insert time), and this avoids introducing any new
+    // persistent fixture state. See messages.test.ts for the full new
+    // insert/update/trigger/Realtime coverage this policy needs.
+    //
+    // Only 3 fixture accounts exist, and messages.test.ts also races for
+    // this same A<->C pair (Jest runs integration files in parallel
+    // workers) — retry on a connections_unique_pair collision (23505)
+    // rather than failing outright; this is expected contention, not a bug.
+    let tempConnId: string | null = null;
+    for (let attempt = 0; attempt < 6 && !tempConnId; attempt++) {
+      const { data: tempConn, error: tempConnErr } = await clientA
+        .from('connections')
+        .insert({ requester_id: userA, recipient_id: userC })
+        .select('id')
+        .single();
+      if (!tempConnErr && tempConn) {
+        tempConnId = tempConn.id;
+      } else if ((tempConnErr as { code?: string } | null)?.code === '23505') {
+        await new Promise((r) => setTimeout(r, 500 + attempt * 500));
+      } else {
+        throw new Error(`temp connection setup failed: ${tempConnErr?.message}`);
+      }
+    }
+    if (!tempConnId) throw new Error('temp connection setup failed: persistent contention on A<->C pair');
+    const { error: tempAcceptErr } = await clientC
+      .from('connections')
+      .update({ status: 'accepted' })
+      .eq('id', tempConnId);
+    if (tempAcceptErr) throw new Error(`temp connection accept failed: ${tempAcceptErr.message}`);
+
+    // messages has no DELETE policy — each run adds one row (harmless, no
     // uniqueness constraint to violate), so use a per-run marker instead of reusing.
-    const { data: msg, error: msgErr } = await clientB
+    const { data: msg, error: msgErr } = await clientA
       .from('messages')
-      .insert({ sender_id: userB, recipient_id: userC, content: `hello from RLS test run ${RUN_ID}` })
+      .insert({ sender_id: userA, recipient_id: userC, content: `hello from RLS test run ${RUN_ID}` })
       .select('id')
       .single();
     if (msgErr || !msg) throw new Error(`message setup failed: ${msgErr?.message}`);
     messageId = msg.id;
+
+    await clientA.from('connections').delete().eq('id', tempConnId);
 
     const { data: like, error: likeErr } = await clientB
       .from('likes')
@@ -443,13 +497,15 @@ describe('RLS policies', () => {
   });
 
   // ---------------------------------------------------------------- messages
-  it('A (uninvolved) cannot read the B->C message', async () => {
-    const { data } = await clientA.from('messages').select('id').eq('id', messageId).maybeSingle();
+  // Fixture message is now A->C (see beforeAll) — B is the true uninvolved
+  // third party for this pair, not A.
+  it('B (uninvolved) cannot read the A->C message', async () => {
+    const { data } = await clientB.from('messages').select('id').eq('id', messageId).maybeSingle();
     expect(data).toBeNull();
   });
 
-  it('A (uninvolved) cannot delete the B->C message', async () => {
-    await clientA.from('messages').delete().eq('id', messageId);
+  it('B (uninvolved) cannot delete the A->C message', async () => {
+    await clientB.from('messages').delete().eq('id', messageId);
     const { data } = await clientC.from('messages').select('id').eq('id', messageId).maybeSingle();
     expect(data).toBeTruthy();
   });

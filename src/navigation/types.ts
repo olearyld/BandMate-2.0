@@ -23,4 +23,8 @@ export type MainStackParamList = {
   PublicProfile: { profileId: string };
   PostDetail: { postId: string };
   CreatePost: undefined;
+  Thread: {
+    otherUserId: string;
+    otherProfile?: { id: string; username: string; display_name: string | null; avatar_url: string | null };
+  };
 };

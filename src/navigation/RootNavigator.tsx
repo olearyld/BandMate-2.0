@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -12,13 +13,16 @@ import Step4Media from '../screens/onboarding/Step4Media';
 import FeedScreen from '../screens/FeedScreen';
 import DiscoverScreen from '../screens/DiscoverScreen';
 import ConnectionsScreen from '../screens/ConnectionsScreen';
-import MessagesScreen from '../screens/MessagesScreen';
+import ConversationsListScreen from '../screens/ConversationsListScreen';
+import ThreadScreen from '../screens/ThreadScreen';
 import MyProfileScreen from '../screens/profile/MyProfileScreen';
 import PublicProfileScreen from '../screens/profile/PublicProfileScreen';
 import PostDetailScreen from '../screens/PostDetailScreen';
 import CreatePostScreen from '../screens/CreatePostScreen';
 import { OnboardingProvider } from './OnboardingContext';
 import { useAppContext } from './AppContext';
+import { supabase } from '../lib/supabase';
+import { getUnreadCount } from '../lib/messages';
 
 import type {
   AuthStackParamList,
@@ -54,7 +58,53 @@ function OnboardingNavigator() {
   );
 }
 
+/**
+ * Unread-message count for the Messages tab badge. Refreshes on tab focus
+ * (via the `tabPress` listener below — MainTabs itself never unmounts, so a
+ * plain useFocusEffect on the tab screen wouldn't fire on every re-tap of an
+ * already-active tab) and on realtime INSERT/UPDATE events scoped to the
+ * current user's incoming messages (a new unread message, or one being
+ * marked read from a ThreadScreen elsewhere in the stack).
+ */
+function useUnreadMessageBadge(userId: string | undefined) {
+  const [count, setCount] = useState(0);
+
+  const refresh = useCallback(() => {
+    if (!userId) return;
+    getUnreadCount().then(setCount).catch(() => {});
+  }, [userId]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    if (!userId) return;
+    const channel = supabase
+      .channel(`unread-badge-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `recipient_id=eq.${userId}` },
+        refresh
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'messages', filter: `recipient_id=eq.${userId}` },
+        refresh
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId, refresh]);
+
+  return { count, refresh };
+}
+
 function MainTabs() {
+  const { session } = useAppContext();
+  const { count: unreadCount, refresh: refreshUnreadBadge } = useUnreadMessageBadge(session?.user.id);
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -86,8 +136,13 @@ function MainTabs() {
       />
       <Tab.Screen
         name="Messages"
-        component={MessagesScreen}
-        options={{ title: 'Messages', tabBarIcon: () => <Text style={{ fontSize: 20 }}>💬</Text> }}
+        component={ConversationsListScreen}
+        options={{
+          title: 'Messages',
+          tabBarIcon: () => <Text style={{ fontSize: 20 }}>💬</Text>,
+          tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+        }}
+        listeners={{ tabPress: () => refreshUnreadBadge() }}
       />
     </Tab.Navigator>
   );
@@ -111,6 +166,14 @@ function MainNavigator() {
         name="CreatePost"
         component={CreatePostScreen}
         options={{ headerShown: true, title: 'New Post', presentation: 'modal' }}
+      />
+      <MainStack.Screen
+        name="Thread"
+        component={ThreadScreen}
+        options={({ route }) => ({
+          headerShown: true,
+          title: route.params.otherProfile?.display_name ?? route.params.otherProfile?.username ?? 'Message',
+        })}
       />
     </MainStack.Navigator>
   );
