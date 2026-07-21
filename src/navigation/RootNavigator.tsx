@@ -10,6 +10,7 @@ import Step2Instruments from '../screens/onboarding/Step2Instruments';
 import Step3Genres from '../screens/onboarding/Step3Genres';
 import Step4Media from '../screens/onboarding/Step4Media';
 import FeedScreen from '../screens/FeedScreen';
+import DiscoverScreen from '../screens/DiscoverScreen';
 import ConnectionsScreen from '../screens/ConnectionsScreen';
 import MessagesScreen from '../screens/MessagesScreen';
 import MyProfileScreen from '../screens/profile/MyProfileScreen';
@@ -67,6 +68,11 @@ function MainTabs() {
         name="Feed"
         component={FeedScreen}
         options={{ title: 'Feed', tabBarIcon: () => <Text style={{ fontSize: 20 }}>🎵</Text> }}
+      />
+      <Tab.Screen
+        name="Discover"
+        component={DiscoverScreen}
+        options={{ title: 'Discover', tabBarIcon: () => <Text style={{ fontSize: 20 }}>🔎</Text> }}
       />
       <Tab.Screen
         name="Connections"

@@ -408,6 +408,26 @@ export type Database = {
     }
     Functions: {
       dev_confirm_user_email: { Args: { user_id: string }; Returns: undefined }
+      discover_profiles: {
+        Args: {
+          genre_ids?: number[]
+          instrument_ids?: number[]
+          page_limit?: number
+          page_offset?: number
+          radius_miles?: number
+        }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          distance_miles: number
+          genres: Json
+          id: string
+          instruments: Json
+          location_city: string
+          location_state: string
+          username: string
+        }[]
+      }
     }
     Enums: {
       availability_status:

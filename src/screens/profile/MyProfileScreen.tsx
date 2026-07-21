@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -23,51 +23,7 @@ import {
 import ProfileBody from '../../components/ProfileBody';
 import AudioPlayer from '../../components/AudioPlayer';
 import CityPicker, { type CityPickerValue } from '../../components/CityPicker';
-
-/** Toggles `value`'s membership in a Set, for use as an onPress handler factory. */
-function toggleInSet<T>(setter: Dispatch<SetStateAction<Set<T>>>) {
-  return (value: T) => {
-    setter((prev) => {
-      const next = new Set(prev);
-      next.has(value) ? next.delete(value) : next.add(value);
-      return next;
-    });
-  };
-}
-
-/** Shared pill-toggle layout for a flat list of selectable options (genres, availability). */
-function ChipToggleGroup<T>({
-  items,
-  getKey,
-  getLabel,
-  isSelected,
-  onToggle,
-}: {
-  items: T[];
-  getKey: (item: T) => string | number;
-  getLabel: (item: T) => string;
-  isSelected: (item: T) => boolean;
-  onToggle: (item: T) => void;
-}) {
-  return (
-    <View className="flex-row flex-wrap gap-2">
-      {items.map((item) => {
-        const isSel = isSelected(item);
-        return (
-          <TouchableOpacity
-            key={getKey(item)}
-            className={`px-4 py-2 rounded-full border ${isSel ? 'bg-brand-primary border-brand-primary' : 'border-gray-300'}`}
-            onPress={() => onToggle(item)}
-          >
-            <Text className={`text-sm font-medium ${isSel ? 'text-white' : 'text-gray-700'}`}>
-              {getLabel(item)}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
-    </View>
-  );
-}
+import ChipToggleGroup, { toggleInSet } from '../../components/ChipToggleGroup';
 
 export default function MyProfileScreen() {
   const [profile, setProfile] = useState<FullProfile | null>(null);

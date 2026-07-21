@@ -127,6 +127,23 @@ export interface ConnectionStatusInfo {
   connectionId: string | null;
 }
 
+// A row from the discover_profiles RPC (Phase 4b). instruments/genres are the
+// RPC's jsonb-aggregated arrays, hand-typed here per the same convention as
+// FullProfile/FeedPostRow — matches the exact shape of that specific query,
+// not postgrest-js's generic Json inference for the function's Returns type.
+// distance_miles is only non-null when a radius filter was applied.
+export interface DiscoverProfileRow {
+  id: string;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  location_city: string | null;
+  location_state: string | null;
+  instruments: { id: number; name: string; skill_level: ExperienceLevel }[];
+  genres: { id: number; name: string }[];
+  distance_miles: number | null;
+}
+
 export interface ProfileSummary {
   id: string;
   username: string;
