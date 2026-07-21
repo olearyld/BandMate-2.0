@@ -66,6 +66,28 @@ const SAMPLE_AUDIO = Array.from(
   { length: 16 },
   (_, i) => `https://www.soundhelix.com/examples/mp3/SoundHelix-Song-${i + 1}.mp3`
 );
+const MESSAGE_TEMPLATES = [
+  'Hey, are you still looking for a bassist?',
+  'Loved your last post, that solo was insane.',
+  'What time works for practice this week?',
+  'Can you send me the setlist for Friday?',
+  "I've got a new amp, wanna jam this weekend?",
+  'Running a bit late, be there in 10.',
+  'That gig last night was awesome, great energy!',
+  'Do you have a spare mic cable I could borrow?',
+  "Let's talk about splitting the door money.",
+  'I found a venue that might work for our next show.',
+  'Can we push rehearsal to next Tuesday?',
+  'Your cover of that song was so good.',
+  "I'm in, count me for the summer tour.",
+  'Need to swap out a broken string before Friday.',
+  'Thanks for covering my shift at the studio.',
+  'Let me know if you need a drummer for the demo.',
+  'That new pedal you got sounds incredible.',
+  'Can you email me the invoice for the studio time?',
+  "I'm free Thursday if you want to jam.",
+  'Great meeting you at the open mic last night!',
+];
 
 // ---------------------------------------------------------------- utilities
 
@@ -283,7 +305,7 @@ function pairKey(a, b) {
  * status is dead going forward (declining is a DELETE), see CONVENTIONS.md.
  */
 async function createConnections(admin, users) {
-  if (users.length < 4) return { pending: 0, accepted: 0 };
+  if (users.length < 4) return { pending: 0, accepted: 0, acceptedPairs: [] };
 
   const [u0, u1, u2, u3] = users;
   const rows = [
@@ -293,7 +315,7 @@ async function createConnections(admin, users) {
   ];
 
   const usedPairs = new Set(rows.map((r) => pairKey(r.requester_id, r.recipient_id)));
-  const extraTarget = Math.min(5, Math.max(0, users.length - 4));
+  const extraTarget = Math.min(7, Math.max(0, users.length - 4));
   let attempts = 0;
   while (rows.length - 3 < extraTarget && attempts < extraTarget * 10) {
     attempts++;
@@ -303,7 +325,9 @@ async function createConnections(admin, users) {
     const key = pairKey(a.id, b.id);
     if (usedPairs.has(key)) continue;
     usedPairs.add(key);
-    rows.push({ requester_id: a.id, recipient_id: b.id, status: pick(['pending', 'pending', 'accepted']) });
+    // 50/50 rather than 1-in-3 — createMessages() needs several accepted
+    // pairs to seed more than one thread's worth of message data.
+    rows.push({ requester_id: a.id, recipient_id: b.id, status: pick(['pending', 'accepted']) });
   }
 
   const { error } = await admin.from('connections').insert(rows);
@@ -312,46 +336,114 @@ async function createConnections(admin, users) {
   return {
     pending: rows.filter((r) => r.status === 'pending').length,
     accepted: rows.filter((r) => r.status === 'accepted').length,
+    // messages_insert_own requires an accepted connection (see Data model) —
+    // createMessages() needs every accepted pair, not just the guaranteed
+    // u0<->u3 one, to seed more than a single conversation.
+    acceptedPairs: rows
+      .filter((r) => r.status === 'accepted')
+      .map((r) => ({ requester_id: r.requester_id, recipient_id: r.recipient_id })),
   };
 }
 
 /**
- * Phase 5a: a realistic, mixed read/unread message thread between the two
- * accounts createConnections() guarantees an *accepted* connection for
- * (u0<->u3) — messages_insert_own now requires one, so this can't be
- * scattered across random pairs the way createConnections() does for the
- * rest of its rows; it has to target the one pair known to be accepted.
- * The last message in the thread (from u3) is left unread (read_at null)
- * so u0's Messages tab badge and ConversationsListScreen unread state are
- * both reachable without hand-crafting data, same "guarantee it for the
- * most-likely-to-be-manually-tested account" approach Phase 4a used for
- * matched/unmatched cities.
+ * A random, back-and-forth conversation between two ids (message content
+ * drawn from MESSAGE_TEMPLATES, 3-10 lines, speaker switching ~70% of the
+ * time rather than strictly alternating for a more natural feel). Spread
+ * over a random recent window (not all ending at "now") so multiple seeded
+ * threads don't all look identically fresh in ConversationsListScreen.
  */
-async function createMessages(admin, u0, u3) {
-  const lines = [
-    { from: u0, content: "Hey, saw your profile — you play bass right?" },
-    { from: u3, content: 'Yeah! Looking for a band actually.' },
-    { from: u0, content: "Nice, we're looking for someone for weekend gigs." },
-    { from: u3, content: 'That sounds great, what genre?' },
-    { from: u0, content: 'Mostly rock/blues, some original stuff too.' },
-    { from: u3, content: "I'm down, when do you usually rehearse?" },
-    { from: u0, content: 'Tuesdays and Thursdays evenings usually.' },
-    { from: u3, content: 'Works for me, see you there!' },
-  ];
+function randomConversation(idA, idB) {
+  const count = randomInt(5, 15);
   const now = Date.now();
-  const rows = lines.map((line, i) => {
-    const senderId = line.from.id;
-    const recipientId = senderId === u0.id ? u3.id : u0.id;
-    const createdAt = new Date(now - (lines.length - i) * 3 * 60 * 1000); // 3 min apart, most recent near "now"
-    const isUnreadFromU3 = senderId === u3.id && i === lines.length - 1;
-    return {
-      sender_id: senderId,
-      recipient_id: recipientId,
-      content: line.content,
-      created_at: createdAt.toISOString(),
-      read_at: isUnreadFromU3 ? null : new Date(createdAt.getTime() + 30 * 1000).toISOString(),
-    };
-  });
+  const endOffsetMinutes = randomInt(5, 60 * 24 * 3); // thread's last message: 5 min to 3 days ago
+  const stepMinutes = randomInt(2, 20);
+
+  let sender = Math.random() < 0.5 ? idA : idB;
+  const lines = [];
+  for (let i = 0; i < count; i++) {
+    lines.push(sender);
+    if (Math.random() < 0.7) sender = sender === idA ? idB : idA;
+  }
+
+  return lines.map((senderId, i) => ({
+    senderId,
+    recipientId: senderId === idA ? idB : idA,
+    content: pick(MESSAGE_TEMPLATES),
+    createdAt: new Date(now - endOffsetMinutes * 60 * 1000 - (count - i) * stepMinutes * 60 * 1000),
+  }));
+}
+
+/**
+ * Phase 5a: message threads for every accepted connection (messages_insert_own
+ * requires one — see Data model — so threads can't be scattered across
+ * random pairs the way createConnections() does for its own extra rows;
+ * every thread here has to target a pair createConnections() actually
+ * accepted). The users[0]<->users[3] pair createConnections() guarantees is
+ * always accepted gets a hand-written, deterministic conversation whose
+ * last message (from users[3]) is left unread — so u0's Messages tab badge
+ * and ConversationsListScreen unread state are both reachable without
+ * depending on random luck, same "guarantee it for the most-likely-to-be-
+ * manually-tested account" approach Phase 4a used for matched/unmatched
+ * cities. Every *other* accepted pair (however many createConnections()
+ * happened to generate this run) gets a randomized conversation instead, so
+ * a reseed produces more than one thread's worth of data to browse.
+ */
+async function createMessages(admin, users, acceptedPairs) {
+  if (users.length < 4) return 0;
+  const [u0, , , u3] = users;
+
+  const guaranteedIndex = acceptedPairs.findIndex(
+    (p) =>
+      (p.requester_id === u0.id && p.recipient_id === u3.id) ||
+      (p.requester_id === u3.id && p.recipient_id === u0.id)
+  );
+  const guaranteedPair = acceptedPairs[guaranteedIndex];
+  const otherPairs = acceptedPairs.filter((_, i) => i !== guaranteedIndex);
+
+  const rows = [];
+
+  if (guaranteedPair) {
+    const lines = [
+      { from: u0.id, content: "Hey, saw your profile — you play bass right?" },
+      { from: u3.id, content: 'Yeah! Looking for a band actually.' },
+      { from: u0.id, content: "Nice, we're looking for someone for weekend gigs." },
+      { from: u3.id, content: 'That sounds great, what genre?' },
+      { from: u0.id, content: 'Mostly rock/blues, some original stuff too.' },
+      { from: u3.id, content: "I'm down, when do you usually rehearse?" },
+      { from: u0.id, content: 'Tuesdays and Thursdays evenings usually.' },
+      { from: u3.id, content: 'Works for me, see you there!' },
+    ];
+    const now = Date.now();
+    for (const [i, line] of lines.entries()) {
+      const recipientId = line.from === u0.id ? u3.id : u0.id;
+      const createdAt = new Date(now - (lines.length - i) * 3 * 60 * 1000); // 3 min apart, most recent near "now"
+      const isUnreadFromU3 = line.from === u3.id && i === lines.length - 1;
+      rows.push({
+        sender_id: line.from,
+        recipient_id: recipientId,
+        content: line.content,
+        created_at: createdAt.toISOString(),
+        read_at: isUnreadFromU3 ? null : new Date(createdAt.getTime() + 30 * 1000).toISOString(),
+      });
+    }
+  }
+
+  for (const pair of otherPairs) {
+    const convo = randomConversation(pair.requester_id, pair.recipient_id);
+    const leaveLastUnread = Math.random() < 0.5;
+    for (const [i, line] of convo.entries()) {
+      const isLast = i === convo.length - 1;
+      rows.push({
+        sender_id: line.senderId,
+        recipient_id: line.recipientId,
+        content: line.content,
+        created_at: line.createdAt.toISOString(),
+        read_at: isLast && leaveLastUnread ? null : new Date(line.createdAt.getTime() + 30 * 1000).toISOString(),
+      });
+    }
+  }
+
+  if (rows.length === 0) return 0;
   const { error } = await admin.from('messages').insert(rows);
   if (error) throw new Error(`insert messages failed: ${error.message}`);
   return rows.length;
@@ -453,9 +545,9 @@ async function seed(admin) {
   const connectionCounts = await createConnections(admin, users);
 
   console.log('Creating messages...');
-  // createConnections() guarantees users[0]<->users[3] is accepted — the
-  // only pair messages_insert_own's connection gate will actually allow.
-  const messageCount = users.length >= 4 ? await createMessages(admin, users[0], users[3]) : 0;
+  // One thread per accepted connection — messages_insert_own's connection
+  // gate means any other pair would just fail to insert.
+  const messageCount = await createMessages(admin, users, connectionCounts.acceptedPairs);
 
   console.log(`Creating ${postCount} media_posts...`);
   const posts = await createPosts(admin, users, postCount);

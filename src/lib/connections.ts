@@ -1,13 +1,11 @@
 import { supabase } from './supabase';
-import type { ConnectionListItem, ConnectionStatusInfo, ProfileSummary } from './types';
+import { PROFILE_SUMMARY_SELECT, type ConnectionListItem, type ConnectionStatusInfo, type ProfileSummary } from './types';
 
 // The only place connection-status logic lives — PublicProfileScreen and
 // ConnectionsScreen both consume this rather than duplicating queries.
 // See CONVENTIONS.md: declining/removing a connection is always a DELETE
 // (cancelOrDeclineOrRemove), never a status update — 'declined' is a dead
 // enum value going forward.
-
-const PROFILE_SUMMARY_SELECT = 'id, username, display_name, avatar_url';
 
 /**
  * Resolves the connection state between viewer and profile, direction-agnostic

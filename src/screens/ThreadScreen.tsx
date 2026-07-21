@@ -68,8 +68,9 @@ export default function ThreadScreen({ route, navigation }: Props) {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    loadInitial()
-      .then(() => markThreadRead(otherUserId).catch(() => {}))
+    // markThreadRead doesn't depend on loadInitial's result — run them
+    // concurrently rather than waiting on one before starting the other.
+    Promise.all([loadInitial(), markThreadRead(otherUserId).catch(() => {})])
       .catch((e: any) => setError(e.message ?? 'Could not load messages.'))
       .finally(() => setLoading(false));
   }, [loadInitial, otherUserId]);
@@ -127,8 +128,8 @@ export default function ThreadScreen({ route, navigation }: Props) {
         // row (it fires for messages I send too, via the recipient_id
         // filter) — if so, just drop the optimistic placeholder instead of
         // creating a duplicate bubble.
-        if (prev.some((m) => m.id === real.id)) return prev.filter((m) => m.id !== tempId);
-        return prev.map((m) => (m.id === tempId ? real : m));
+        const withoutTemp = prev.filter((m) => m.id !== tempId);
+        return withoutTemp.some((m) => m.id === real.id) ? withoutTemp : [real, ...withoutTemp];
       });
     } catch (e: any) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));

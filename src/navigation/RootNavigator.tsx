@@ -21,8 +21,7 @@ import PostDetailScreen from '../screens/PostDetailScreen';
 import CreatePostScreen from '../screens/CreatePostScreen';
 import { OnboardingProvider } from './OnboardingContext';
 import { useAppContext } from './AppContext';
-import { supabase } from '../lib/supabase';
-import { getUnreadCount } from '../lib/messages';
+import { getUnreadCount, subscribeToUnreadCount } from '../lib/messages';
 
 import type {
   AuthStackParamList,
@@ -59,12 +58,14 @@ function OnboardingNavigator() {
 }
 
 /**
- * Unread-message count for the Messages tab badge. Refreshes on tab focus
- * (via the `tabPress` listener below — MainTabs itself never unmounts, so a
- * plain useFocusEffect on the tab screen wouldn't fire on every re-tap of an
- * already-active tab) and on realtime INSERT/UPDATE events scoped to the
- * current user's incoming messages (a new unread message, or one being
- * marked read from a ThreadScreen elsewhere in the stack).
+ * Unread-message count for the Messages tab badge. Kept live by
+ * subscribeToUnreadCount's realtime subscription (see src/lib/messages.ts —
+ * the one place messaging Realtime subscriptions live), plus an explicit
+ * `refresh()` exposed for the `tabPress` listener below: MainTabs itself
+ * never unmounts, so a plain useFocusEffect on the tab screen wouldn't fire
+ * on every re-tap of an already-active tab, and a resync independent of the
+ * realtime channel is worth having since Postgres Changes doesn't replay
+ * events missed during a brief disconnect.
  */
 function useUnreadMessageBadge(userId: string | undefined) {
   const [count, setCount] = useState(0);
@@ -75,27 +76,9 @@ function useUnreadMessageBadge(userId: string | undefined) {
   }, [userId]);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  useEffect(() => {
     if (!userId) return;
-    const channel = supabase
-      .channel(`unread-badge-${userId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages', filter: `recipient_id=eq.${userId}` },
-        refresh
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'messages', filter: `recipient_id=eq.${userId}` },
-        refresh
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    refresh();
+    return subscribeToUnreadCount(userId, setCount);
   }, [userId, refresh]);
 
   return { count, refresh };

@@ -9,121 +9,22 @@
  * since these are guaranteed to already exist on this project).
  *
  * This file manages all of its own connection state via disposable
- * insert-then-delete helpers (withDisposableConnection / withAcceptedConnection)
- * rather than relying on any connection rls.test.ts sets up — the two files
- * can run in either order, or concurrently, without interfering.
+ * insert-then-delete helpers (withDisposableConnection / withAcceptedConnection,
+ * both shared with rls.test.ts via ./testHelpers) rather than relying on any
+ * connection rls.test.ts sets up — the two files can run in either order, or
+ * concurrently, without interfering.
  *
  * Messages still has no DELETE policy (deliberately deferred — see
  * CONVENTIONS.md), so successful inserts here leave a row behind, same
  * disclosed accumulation as rls.test.ts's own message fixture.
  */
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import type { WebSocketLikeConstructor } from '@supabase/realtime-js';
-import WebSocket from 'ws';
+import { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../../src/lib/database.types';
+import { makeClient, signIn, withAcceptedConnection, withDisposableConnection } from './testHelpers';
 
 jest.setTimeout(45000);
 
-const SUPABASE_URL = process.env.TEST_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.TEST_SUPABASE_ANON_KEY!;
-
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  throw new Error(
-    'TEST_SUPABASE_URL / TEST_SUPABASE_ANON_KEY are not set. ' +
-      'Integration tests need a real .env — see jest.setup.js.'
-  );
-}
-
-const PASSWORD = 'BandmateTest!23456';
 const RUN_ID = `${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
-
-function makeClient(): SupabaseClient<Database> {
-  // Unlike rls.test.ts/discover.test.ts, this file actually exercises
-  // Realtime for real (see the "Realtime" describe block below), not just
-  // supplying `ws` to satisfy createClient() init.
-  return createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    realtime: { transport: WebSocket as WebSocketLikeConstructor },
-  });
-}
-
-async function signIn(client: SupabaseClient<Database>, email: string): Promise<string> {
-  const { data, error } = await client.auth.signInWithPassword({ email, password: PASSWORD });
-  if (error || !data.user) {
-    throw new Error(
-      `Sign-in failed for fixture ${email}: ${error?.message}. This fixture must already exist — see rls.test.ts.`
-    );
-  }
-  return data.user.id;
-}
-
-/**
- * Only 3 fixture accounts exist (A/B/C — see header comment), so there are
- * only 3 possible pairs, one of which (B<->C) is permanently claimed by
- * rls.test.ts. Jest runs integration test files in separate parallel
- * workers by default, and rls.test.ts *also* needs a throwaway accepted
- * A<->C connection for its own fixture message (Phase 5a's connection-gated
- * insert policy) — so a `connections_unique_pair` collision between the two
- * files racing for the same pair is expected contention, not a bug. Retries
- * with backoff rather than erroring immediately on a 23505.
- */
-async function insertConnectionWithRetry(
-  client: SupabaseClient<Database>,
-  requesterId: string,
-  recipientId: string,
-  status?: 'pending' | 'declined'
-): Promise<string> {
-  for (let attempt = 0; attempt < 6; attempt++) {
-    const { data, error } = await client
-      .from('connections')
-      .insert({ requester_id: requesterId, recipient_id: recipientId, ...(status ? { status } : {}) })
-      .select('id')
-      .single();
-    if (!error) return data!.id;
-    if ((error as { code?: string }).code !== '23505') throw error;
-    await sleep(500 + attempt * 500);
-  }
-  throw new Error(`could not acquire connection ${requesterId}<->${recipientId} after retries (persistent contention)`);
-}
-
-/** Inserts a connection with an explicit status (pending/declined — both are
- * directly insertable since connections_insert_requester only checks
- * requester_id, not status), runs fn, then always deletes it. */
-async function withDisposableConnection(
-  insertingClient: SupabaseClient<Database>,
-  requesterId: string,
-  recipientId: string,
-  status: 'pending' | 'declined',
-  fn: (connectionId: string) => Promise<void>
-): Promise<void> {
-  const connectionId = await insertConnectionWithRetry(insertingClient, requesterId, recipientId, status);
-  try {
-    await fn(connectionId);
-  } finally {
-    await insertingClient.from('connections').delete().eq('id', connectionId);
-  }
-}
-
-/** Inserts a connection, has the recipient accept it, runs fn, then always deletes it. */
-async function withAcceptedConnection(
-  requesterClient: SupabaseClient<Database>,
-  recipientClient: SupabaseClient<Database>,
-  requesterId: string,
-  recipientId: string,
-  fn: (connectionId: string) => Promise<void>
-): Promise<void> {
-  const connectionId = await insertConnectionWithRetry(requesterClient, requesterId, recipientId);
-  const { error: acceptErr } = await recipientClient
-    .from('connections')
-    .update({ status: 'accepted' })
-    .eq('id', connectionId);
-  if (acceptErr) throw new Error(`disposable connection accept failed: ${acceptErr.message}`);
-  try {
-    await fn(connectionId);
-  } finally {
-    await requesterClient.from('connections').delete().eq('id', connectionId);
-  }
-}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -176,23 +77,35 @@ describe('messages: connection-gated insert + read-receipt update + trigger guar
   });
 
   it('insert is rejected between a pending-connection pair', async () => {
-    await withDisposableConnection(clientA, userA, userB, 'pending', async () => {
-      const { error } = await clientA
-        .from('messages')
-        .insert({ sender_id: userA, recipient_id: userB, content: `pending-pair-insert ${RUN_ID}` });
-      expect(error).toBeTruthy();
-      expect((error as { code?: string } | null)?.code).toBe('42501');
-    });
+    await withDisposableConnection(
+      clientA,
+      userA,
+      userB,
+      async () => {
+        const { error } = await clientA
+          .from('messages')
+          .insert({ sender_id: userA, recipient_id: userB, content: `pending-pair-insert ${RUN_ID}` });
+        expect(error).toBeTruthy();
+        expect((error as { code?: string } | null)?.code).toBe('42501');
+      },
+      'pending'
+    );
   });
 
   it('insert is rejected between a declined-connection pair', async () => {
-    await withDisposableConnection(clientA, userA, userB, 'declined', async () => {
-      const { error } = await clientA
-        .from('messages')
-        .insert({ sender_id: userA, recipient_id: userB, content: `declined-pair-insert ${RUN_ID}` });
-      expect(error).toBeTruthy();
-      expect((error as { code?: string } | null)?.code).toBe('42501');
-    });
+    await withDisposableConnection(
+      clientA,
+      userA,
+      userB,
+      async () => {
+        const { error } = await clientA
+          .from('messages')
+          .insert({ sender_id: userA, recipient_id: userB, content: `declined-pair-insert ${RUN_ID}` });
+        expect(error).toBeTruthy();
+        expect((error as { code?: string } | null)?.code).toBe('42501');
+      },
+      'declined'
+    );
   });
 
   it('insert is rejected with no connection at all between the pair', async () => {
@@ -271,70 +184,39 @@ describe('messages: connection-gated insert + read-receipt update + trigger guar
   });
 
   // ------------------------------------------------------------- trigger guard
-  it('trigger rejects changing content via UPDATE', async () => {
+  // Structurally identical across fields (insert -> attempt a one-field
+  // update -> expect rejection -> confirm the field didn't change), so
+  // data-driven via it.each rather than four near-copy-pasted test bodies.
+  type MessageRow = { id: string; content: string; sender_id: string; recipient_id: string; created_at: string };
+  it.each<[keyof Omit<MessageRow, 'id'>, () => string]>([
+    ['content', () => 'tampered'],
+    ['sender_id', () => userB],
+    ['recipient_id', () => userB],
+    ['created_at', () => new Date(0).toISOString()],
+  ])('trigger rejects changing %s via UPDATE', async (field, getTamperedValue) => {
     await withAcceptedConnection(clientA, clientC, userA, userC, async () => {
-      const { data: msg } = await clientA
+      const { data: original } = await clientA
         .from('messages')
-        .insert({ sender_id: userA, recipient_id: userC, content: `trigger-content ${RUN_ID}` })
-        .select('id, content')
+        .insert({ sender_id: userA, recipient_id: userC, content: `trigger-${field} ${RUN_ID}` })
+        .select('id, content, sender_id, recipient_id, created_at')
         .single();
 
-      const { error } = await clientC.from('messages').update({ content: 'tampered' }).eq('id', msg!.id);
-      expect(error).toBeTruthy();
-
-      const { data: check } = await clientC.from('messages').select('content').eq('id', msg!.id).single();
-      expect(check?.content).toBe(msg!.content);
-    });
-  });
-
-  it('trigger rejects changing sender_id via UPDATE', async () => {
-    await withAcceptedConnection(clientA, clientC, userA, userC, async () => {
-      const { data: msg } = await clientA
-        .from('messages')
-        .insert({ sender_id: userA, recipient_id: userC, content: `trigger-sender ${RUN_ID}` })
-        .select('id')
-        .single();
-
-      const { error } = await clientC.from('messages').update({ sender_id: userB }).eq('id', msg!.id);
-      expect(error).toBeTruthy();
-
-      const { data: check } = await clientC.from('messages').select('sender_id').eq('id', msg!.id).single();
-      expect(check?.sender_id).toBe(userA);
-    });
-  });
-
-  it('trigger rejects changing recipient_id via UPDATE', async () => {
-    await withAcceptedConnection(clientA, clientC, userA, userC, async () => {
-      const { data: msg } = await clientA
-        .from('messages')
-        .insert({ sender_id: userA, recipient_id: userC, content: `trigger-recipient ${RUN_ID}` })
-        .select('id')
-        .single();
-
-      const { error } = await clientC.from('messages').update({ recipient_id: userB }).eq('id', msg!.id);
-      expect(error).toBeTruthy();
-
-      const { data: check } = await clientC.from('messages').select('recipient_id').eq('id', msg!.id).single();
-      expect(check?.recipient_id).toBe(userC);
-    });
-  });
-
-  it('trigger rejects changing created_at via UPDATE', async () => {
-    await withAcceptedConnection(clientA, clientC, userA, userC, async () => {
-      const { data: msg } = await clientA
-        .from('messages')
-        .insert({ sender_id: userA, recipient_id: userC, content: `trigger-created-at ${RUN_ID}` })
-        .select('id, created_at')
-        .single();
-
+      // Dynamic single-field update — postgrest-js's typed update() rejects any
+      // object with a generic string index signature (by design, to catch
+      // typos), so a computed key needs `any` here; the field always comes
+      // from the literal table above, never arbitrary input.
       const { error } = await clientC
         .from('messages')
-        .update({ created_at: new Date(0).toISOString() })
-        .eq('id', msg!.id);
+        .update({ [field]: getTamperedValue() } as any)
+        .eq('id', original!.id);
       expect(error).toBeTruthy();
 
-      const { data: check } = await clientC.from('messages').select('created_at').eq('id', msg!.id).single();
-      expect(check?.created_at).toBe(msg!.created_at);
+      const { data: check } = await clientC
+        .from('messages')
+        .select('content, sender_id, recipient_id, created_at')
+        .eq('id', original!.id)
+        .single();
+      expect(check?.[field]).toBe(original![field]);
     });
   });
 

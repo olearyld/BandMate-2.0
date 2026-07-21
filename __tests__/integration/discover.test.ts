@@ -39,45 +39,11 @@
  * assertion here checks only for the presence/absence of these six known
  * fixture ids within a result set, which is robust to that other data.
  */
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import type { WebSocketLikeConstructor } from '@supabase/realtime-js';
-import WebSocket from 'ws';
+import { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../../src/lib/database.types';
+import { makeClient, signIn } from './testHelpers';
 
 jest.setTimeout(30000);
-
-const SUPABASE_URL = process.env.TEST_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.TEST_SUPABASE_ANON_KEY!;
-
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  throw new Error(
-    'TEST_SUPABASE_URL / TEST_SUPABASE_ANON_KEY are not set. ' +
-      'Integration tests need a real .env — see jest.setup.js.'
-  );
-}
-
-const PASSWORD = 'BandmateTest!23456';
-
-function makeClient(): SupabaseClient<Database> {
-  // Node 20 has no native WebSocket, and createClient() eagerly initializes the
-  // Realtime client — supply `ws` as the transport so client creation doesn't throw.
-  // This suite doesn't use Realtime at all, this is purely to satisfy init.
-  return createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    realtime: { transport: WebSocket as WebSocketLikeConstructor },
-  });
-}
-
-async function signIn(client: SupabaseClient<Database>, email: string): Promise<string> {
-  const { data, error } = await client.auth.signInWithPassword({ email, password: PASSWORD });
-  if (error || !data.user) {
-    throw new Error(
-      `Sign-in failed for fixture ${email}: ${error?.message}. ` +
-        'This fixture must be SQL-bootstrapped first — see this file\'s header comment.'
-    );
-  }
-  return data.user.id;
-}
 
 describe('discover_profiles RPC', () => {
   let callerClient: SupabaseClient<Database>;

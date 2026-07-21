@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { ConversationSummary, Message, ProfileSummary } from './types';
+import { PROFILE_SUMMARY_SELECT, type ConversationSummary, type Message, type ProfileSummary } from './types';
 
 // The only place messaging logic lives — ConversationsListScreen and
 // ThreadScreen both consume this rather than duplicating queries, same
@@ -22,8 +22,6 @@ async function currentUserId(): Promise<string> {
   if (!session) throw new Error('Not signed in.');
   return session.user.id;
 }
-
-const PROFILE_SUMMARY_SELECT = 'id, username, display_name, avatar_url';
 
 interface MessageWithProfiles {
   id: string;
@@ -98,6 +96,45 @@ export async function getUnreadCount(): Promise<number> {
     .is('read_at', null);
   if (error) throw error;
   return count ?? 0;
+}
+
+const UNREAD_COUNT_DEBOUNCE_MS = 300;
+
+/**
+ * Subscribes to realtime changes affecting userId's unread count — a new
+ * incoming message, or an existing one being marked read — and calls
+ * onChange with a freshly recomputed total. Debounced: a single
+ * markThreadRead() call can emit one Postgres Changes UPDATE event per row
+ * it touches, so without this, marking a multi-message backlog read would
+ * trigger one redundant count query per row instead of one.
+ */
+export function subscribeToUnreadCount(userId: string, onChange: (count: number) => void): () => void {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const scheduleRefresh = () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      getUnreadCount().then(onChange).catch(() => {});
+    }, UNREAD_COUNT_DEBOUNCE_MS);
+  };
+
+  const channel = supabase
+    .channel(`unread-count-${userId}`)
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'messages', filter: `recipient_id=eq.${userId}` },
+      scheduleRefresh
+    )
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'messages', filter: `recipient_id=eq.${userId}` },
+      scheduleRefresh
+    )
+    .subscribe();
+
+  return () => {
+    if (timer) clearTimeout(timer);
+    supabase.removeChannel(channel);
+  };
 }
 
 /** Paginated message history with one other user, newest-first page order. */

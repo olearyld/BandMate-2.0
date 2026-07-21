@@ -151,6 +151,11 @@ export interface ProfileSummary {
   avatar_url: string | null;
 }
 
+// The select-fragment matching ProfileSummary's shape, shared by connections.ts
+// and messages.ts (both join a "the other party" profile) rather than each
+// keeping its own copy.
+export const PROFILE_SUMMARY_SELECT = 'id, username, display_name, avatar_url';
+
 // A row in one of the Connections screen's three lists — the connection id
 // plus whichever profile is the "other" party from the viewer's perspective.
 export interface ConnectionListItem {
