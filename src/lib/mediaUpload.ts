@@ -193,16 +193,16 @@ export async function uploadPostMedia(
 ): Promise<{ url: string; thumbnailUrl: string | null }> {
   const ext = extensionFor(media.uri, media.type);
   const id = randomId();
-  const url = await uploadToStorage(media.uri, `${userId}/posts/${id}.${ext}`, mimeTypeFor(ext));
 
-  let thumbnailUrl: string | null = null;
-  if (media.thumbnailUri) {
-    thumbnailUrl = await uploadToStorage(
-      media.thumbnailUri,
-      `${userId}/posts/${id}_thumb.jpg`,
-      mimeTypeFor('jpg')
-    );
-  }
+  // Media and thumbnail are independent uploads (different local files, different
+  // storage keys) -- run them concurrently rather than back-to-back to halve
+  // wall-clock latency on every video post.
+  const [url, thumbnailUrl] = await Promise.all([
+    uploadToStorage(media.uri, `${userId}/posts/${id}.${ext}`, mimeTypeFor(ext)),
+    media.thumbnailUri
+      ? uploadToStorage(media.thumbnailUri, `${userId}/posts/${id}_thumb.jpg`, mimeTypeFor('jpg'))
+      : Promise.resolve(null),
+  ]);
   return { url, thumbnailUrl };
 }
 

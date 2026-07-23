@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useMemo, useState } from 'react';
 import type { ExperienceLevel, MediaType } from '../lib/types';
 
 export interface OnboardingDraft {
@@ -23,11 +23,12 @@ const OnboardingContext = createContext<OnboardingContextValue | null>(null);
 
 export function OnboardingProvider({ children }: { children: React.ReactNode }) {
   const [draft, setDraft] = useState<OnboardingDraft>({});
-  return (
-    <OnboardingContext.Provider value={{ draft, setDraft }}>
-      {children}
-    </OnboardingContext.Provider>
-  );
+  // Memoized so every one of the 4 onboarding steps' useOnboarding() consumers
+  // doesn't re-render on an OnboardingProvider re-render that didn't actually
+  // change draft/setDraft -- setDraft is already stable (useState's setter),
+  // so this only recomputes when draft itself changes.
+  const value = useMemo(() => ({ draft, setDraft }), [draft]);
+  return <OnboardingContext.Provider value={value}>{children}</OnboardingContext.Provider>;
 }
 
 export function useOnboarding() {

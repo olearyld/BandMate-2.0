@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, FlatList } from 'react-native';
 import { useFocusEffect, type CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -45,9 +45,13 @@ export default function ConversationsListScreen({ navigation }: Props) {
     }, [load])
   );
 
-  function goToThread(item: ConversationSummary) {
-    navigation.navigate('Thread', { otherUserId: item.otherProfile.id, otherProfile: item.otherProfile });
-  }
+  // Stable reference so ConversationRow's memoization below isn't defeated
+  // by a fresh closure identity on every ConversationsListScreen render.
+  const goToThread = useCallback(
+    (item: ConversationSummary) =>
+      navigation.navigate('Thread', { otherUserId: item.otherProfile.id, otherProfile: item.otherProfile }),
+    [navigation]
+  );
 
   if (loading) {
     return (
@@ -81,41 +85,58 @@ export default function ConversationsListScreen({ navigation }: Props) {
             </Text>
           </View>
         }
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            className="flex-row items-center py-3 border-b border-gray-100"
-            onPress={() => goToThread(item)}
-          >
-            <Avatar
-              uri={item.otherProfile.avatar_url}
-              name={item.otherProfile.display_name ?? item.otherProfile.username}
-              size="lg"
-              className="mr-3"
-            />
-            <View className="flex-1 mr-2">
-              <Text className="text-base font-semibold text-gray-900" numberOfLines={1}>
-                {item.otherProfile.display_name ?? item.otherProfile.username}
-              </Text>
-              <Text
-                className={`text-sm ${item.unreadCount > 0 ? 'text-gray-900 font-medium' : 'text-gray-500'}`}
-                numberOfLines={1}
-              >
-                {item.lastMessage.content}
-              </Text>
-            </View>
-            <View className="items-end">
-              <Text className="text-xs text-gray-400 mb-1">
-                {new Date(item.lastMessage.createdAt).toLocaleDateString()}
-              </Text>
-              {item.unreadCount > 0 && (
-                <View className="bg-brand-primary rounded-full min-w-[20px] h-5 px-1.5 items-center justify-center">
-                  <Text className="text-white text-xs font-bold">{item.unreadCount}</Text>
-                </View>
-              )}
-            </View>
-          </TouchableOpacity>
-        )}
+        renderItem={({ item }) => <ConversationRow item={item} onPress={goToThread} />}
       />
     </View>
   );
 }
+
+// Memoized for the same reason as FeedCard/DiscoverRow -- listConversations()
+// currently rebuilds the whole array fresh on every load(), so this doesn't
+// yet skip a re-render in practice, but it keeps this screen resistant to
+// becoming a footgun if a future change (e.g. incremental per-conversation
+// updates) makes conversations' object identity stable across unrelated
+// re-renders. onPress is a stable reference from ConversationsListScreen
+// (see above), not a per-row closure, so the memoization is real once that's true.
+const ConversationRow = memo(function ConversationRow({
+  item,
+  onPress,
+}: {
+  item: ConversationSummary;
+  onPress: (item: ConversationSummary) => void;
+}) {
+  return (
+    <TouchableOpacity
+      className="flex-row items-center py-3 border-b border-gray-100"
+      onPress={() => onPress(item)}
+    >
+      <Avatar
+        uri={item.otherProfile.avatar_url}
+        name={item.otherProfile.display_name ?? item.otherProfile.username}
+        size="lg"
+        className="mr-3"
+      />
+      <View className="flex-1 mr-2">
+        <Text className="text-base font-semibold text-gray-900" numberOfLines={1}>
+          {item.otherProfile.display_name ?? item.otherProfile.username}
+        </Text>
+        <Text
+          className={`text-sm ${item.unreadCount > 0 ? 'text-gray-900 font-medium' : 'text-gray-500'}`}
+          numberOfLines={1}
+        >
+          {item.lastMessage.content}
+        </Text>
+      </View>
+      <View className="items-end">
+        <Text className="text-xs text-gray-400 mb-1">
+          {new Date(item.lastMessage.createdAt).toLocaleDateString()}
+        </Text>
+        {item.unreadCount > 0 && (
+          <View className="bg-brand-primary rounded-full min-w-[20px] h-5 px-1.5 items-center justify-center">
+            <Text className="text-white text-xs font-bold">{item.unreadCount}</Text>
+          </View>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+});

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { memo, useCallback, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -130,32 +130,47 @@ export default function FeedScreen({ navigation }: Props) {
     }
   }
 
-  async function handleToggleLike(post: FeedPostRow) {
-    if (!currentUserId) return;
-    const alreadyLiked = post.likes.some((l) => l.user_id === currentUserId);
+  // Stable across renders (functional setState updaters need no `posts`
+  // dependency) so FeedCard's memoization below isn't defeated by a fresh
+  // closure identity on every FeedScreen render.
+  const handleToggleLike = useCallback(
+    async (post: FeedPostRow) => {
+      if (!currentUserId) return;
+      const alreadyLiked = post.likes.some((l) => l.user_id === currentUserId);
 
-    setPosts((prev) =>
-      prev.map((p) =>
-        p.id !== post.id
-          ? p
-          : {
-              ...p,
-              likes: alreadyLiked
-                ? p.likes.filter((l) => l.user_id !== currentUserId)
-                : [...p.likes, { user_id: currentUserId }],
-            }
-      )
-    );
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id !== post.id
+            ? p
+            : {
+                ...p,
+                likes: alreadyLiked
+                  ? p.likes.filter((l) => l.user_id !== currentUserId)
+                  : [...p.likes, { user_id: currentUserId }],
+              }
+        )
+      );
 
-    const { error: err } = alreadyLiked
-      ? await supabase.from('likes').delete().eq('post_id', post.id).eq('user_id', currentUserId)
-      : await supabase.from('likes').insert({ post_id: post.id, user_id: currentUserId });
+      const { error: err } = alreadyLiked
+        ? await supabase.from('likes').delete().eq('post_id', post.id).eq('user_id', currentUserId)
+        : await supabase.from('likes').insert({ post_id: post.id, user_id: currentUserId });
 
-    if (err) {
-      // Revert the optimistic update on failure.
-      setPosts((prev) => prev.map((p) => (p.id === post.id ? post : p)));
-    }
-  }
+      if (err) {
+        // Revert the optimistic update on failure.
+        setPosts((prev) => prev.map((p) => (p.id === post.id ? post : p)));
+      }
+    },
+    [currentUserId]
+  );
+
+  const handlePressPost = useCallback(
+    (postId: string) => navigation.navigate('PostDetail', { postId }),
+    [navigation]
+  );
+  const handlePressAuthor = useCallback(
+    (profileId: string) => navigation.navigate('PublicProfile', { profileId }),
+    [navigation]
+  );
 
   return (
     <View className="flex-1 bg-white">
@@ -203,9 +218,9 @@ export default function FeedScreen({ navigation }: Props) {
             <FeedCard
               post={item}
               currentUserId={currentUserId}
-              onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
-              onPressAuthor={() => navigation.navigate('PublicProfile', { profileId: item.profile_id })}
-              onToggleLike={() => handleToggleLike(item)}
+              onPress={handlePressPost}
+              onPressAuthor={handlePressAuthor}
+              onToggleLike={handleToggleLike}
             />
           )}
         />
@@ -222,7 +237,14 @@ export default function FeedScreen({ navigation }: Props) {
   );
 }
 
-function FeedCard({
+// Memoized so an unrelated FeedScreen re-render (or another row's like
+// toggle, which only replaces that one post's object reference in
+// setPosts's functional update) doesn't re-render every visible card.
+// Requires the callback props to be stable references (see FeedScreen's
+// useCallback-wrapped handlers above) -- an inline arrow per row here would
+// defeat this entirely, so callbacks take the post id/object rather than
+// being pre-bound closures per row.
+const FeedCard = memo(function FeedCard({
   post,
   currentUserId,
   onPress,
@@ -231,9 +253,9 @@ function FeedCard({
 }: {
   post: FeedPostRow;
   currentUserId: string | undefined;
-  onPress: () => void;
-  onPressAuthor: () => void;
-  onToggleLike: () => void;
+  onPress: (postId: string) => void;
+  onPressAuthor: (profileId: string) => void;
+  onToggleLike: (post: FeedPostRow) => void;
 }) {
   const author = post.profiles;
   const likeCount = post.likes.length;
@@ -241,8 +263,12 @@ function FeedCard({
   const likedByMe = !!currentUserId && post.likes.some((l) => l.user_id === currentUserId);
 
   return (
-    <TouchableOpacity activeOpacity={0.9} onPress={onPress} className="mb-6 px-4">
-      <TouchableOpacity activeOpacity={0.7} onPress={onPressAuthor} className="flex-row items-center mb-3">
+    <TouchableOpacity activeOpacity={0.9} onPress={() => onPress(post.id)} className="mb-6 px-4">
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={() => onPressAuthor(post.profile_id)}
+        className="flex-row items-center mb-3"
+      >
         <Avatar uri={author.avatar_url} name={author.display_name ?? author.username} className="mr-3" />
         <View>
           <Text className="text-sm font-semibold text-gray-900">
@@ -269,7 +295,7 @@ function FeedCard({
       )}
 
       <View className="flex-row items-center mt-3 gap-5">
-        <TouchableOpacity onPress={onToggleLike} className="flex-row items-center gap-1.5">
+        <TouchableOpacity onPress={() => onToggleLike(post)} className="flex-row items-center gap-1.5">
           <Text className="text-lg">{likedByMe ? '❤️' : '🤍'}</Text>
           <Text className="text-sm text-gray-500">{likeCount}</Text>
         </TouchableOpacity>
@@ -280,7 +306,7 @@ function FeedCard({
       </View>
     </TouchableOpacity>
   );
-}
+});
 
 function FeedMedia({ post }: { post: FeedPostRow }) {
   if (post.media_type === 'image') {

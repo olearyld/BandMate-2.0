@@ -1,9 +1,5 @@
 export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced' | 'professional';
 export type MediaType = 'image' | 'audio' | 'video';
-// 'declined' is a dead enum value going forward — declining/removing a connection is
-// always a DELETE, never a status update. Kept here only because the DB column still
-// allows it; no code path should ever set status to 'declined'. See CONVENTIONS.md.
-export type ConnectionStatus = 'pending' | 'accepted' | 'declined';
 export type AvailabilityStatus =
   | 'looking_for_band'
   | 'available_for_session_work'
@@ -66,19 +62,6 @@ export interface City {
   lng: number;
 }
 
-export interface ProfileInstrument {
-  profile_id: string;
-  instrument_id: number;
-  skill_level: ExperienceLevel;
-  instrument?: Instrument;
-}
-
-export interface ProfileGenre {
-  profile_id: string;
-  genre_id: number;
-  genre?: Genre;
-}
-
 export interface MediaPost {
   id: string;
   profile_id: string;
@@ -91,28 +74,12 @@ export interface MediaPost {
   created_at: string;
 }
 
-export interface Like {
-  id: string;
-  post_id: string;
-  user_id: string;
-  created_at: string;
-}
-
 export interface Comment {
   id: string;
   post_id: string;
   user_id: string;
   body: string;
   created_at: string;
-}
-
-export interface Connection {
-  id: string;
-  requester_id: string;
-  recipient_id: string;
-  status: ConnectionStatus;
-  created_at: string;
-  updated_at: string;
 }
 
 // The four states the connect button / connection UI can be in, from a given
@@ -263,30 +230,4 @@ export interface PostDetailRow extends MediaPost {
   profiles: PostAuthor;
   likes: { user_id: string }[];
   comments: (Comment & { profiles: PostAuthor })[];
-}
-
-// Row-only types used in insert/update — no joined relation fields
-export interface ProfileInsert {
-  id: string;
-  username: string;
-  display_name?: string | null;
-  bio?: string | null;
-  location_city?: string | null;
-  location_state?: string | null;
-  matched_city_id?: string | null;
-  experience_level?: ExperienceLevel | null;
-  avatar_url?: string | null;
-  intro_media_url?: string | null;
-  intro_media_type?: MediaType | null;
-}
-
-export interface ProfileInstrumentInsert {
-  profile_id: string;
-  instrument_id: number;
-  skill_level: ExperienceLevel;
-}
-
-export interface ProfileGenreInsert {
-  profile_id: string;
-  genre_id: number;
 }

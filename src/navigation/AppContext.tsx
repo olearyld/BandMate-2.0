@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { registerPushToken, subscribeToPushTokenChanges } from '../lib/pushNotifications';
 import type { Session } from '@supabase/supabase-js';
@@ -90,11 +90,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return subscribeToPushTokenChanges(profileId);
   }, [appState, session]);
 
-  return (
-    <AppContext.Provider value={{ appState, session, refreshProfile }}>
-      {children}
-    </AppContext.Provider>
-  );
+  // Memoized so every useAppContext() consumer across the app doesn't
+  // re-render on an AppProvider re-render that didn't actually change
+  // appState/session -- refreshProfile is already stable (useCallback), so
+  // this only recomputes when appState or session themselves change.
+  const value = useMemo(() => ({ appState, session, refreshProfile }), [appState, session, refreshProfile]);
+
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
 export function useAppContext() {

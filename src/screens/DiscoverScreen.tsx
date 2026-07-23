@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useFocusEffect, type CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -90,26 +90,34 @@ export default function DiscoverScreen({ navigation }: Props) {
     setStatusMap(map);
   }, [userId]);
 
-  // Single effect for both the initial load and any filter change — fires
-  // once myCityLoaded flips true (gating the radius default), then again on
-  // any instrument/genre/radius change, always resetting to page 0.
+  // Connection statuses have no dependency on the instrument/genre/radius
+  // filters, so this is its own mount-time-only effect (keyed on userId,
+  // same as loadConnectionStatuses itself) rather than living inside the
+  // filtered-results effect below -- previously every chip toggle re-ran
+  // this alongside the results fetch, tripling the query count per toggle
+  // for no reason (the incoming/sent/accepted lists don't change when a
+  // filter changes). Refresh-on-refocus is still handled separately by the
+  // useFocusEffect below.
+  useEffect(() => {
+    loadConnectionStatuses();
+  }, [loadConnectionStatuses]);
+
+  // Fires once myCityLoaded flips true (gating the radius default), then
+  // again on any instrument/genre/radius change, always resetting to page 0.
   useEffect(() => {
     if (!myCityLoaded) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
     const effectiveRadius = myMatchedCityId ? radiusMiles : null;
-    Promise.all([
-      discoverProfiles({
-        instrumentIds: Array.from(selectedInstruments),
-        genreIds: Array.from(selectedGenres),
-        radiusMiles: effectiveRadius,
-        pageLimit: PAGE_SIZE,
-        pageOffset: 0,
-      }),
-      loadConnectionStatuses(),
-    ])
-      .then(([rows]) => {
+    discoverProfiles({
+      instrumentIds: Array.from(selectedInstruments),
+      genreIds: Array.from(selectedGenres),
+      radiusMiles: effectiveRadius,
+      pageLimit: PAGE_SIZE,
+      pageOffset: 0,
+    })
+      .then((rows) => {
         if (cancelled) return;
         setResults(rows);
         setHasMore(rows.length === PAGE_SIZE);
@@ -123,7 +131,7 @@ export default function DiscoverScreen({ navigation }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [myCityLoaded, myMatchedCityId, selectedInstruments, selectedGenres, radiusMiles, loadConnectionStatuses]);
+  }, [myCityLoaded, myMatchedCityId, selectedInstruments, selectedGenres, radiusMiles]);
 
   const isFirstFocus = useRef(true);
   useFocusEffect(
@@ -160,18 +168,28 @@ export default function DiscoverScreen({ navigation }: Props) {
     }
   }
 
-  async function handleConnect(profileId: string) {
-    if (!userId) return;
-    setBusyId(profileId);
-    try {
-      await sendRequest(userId, profileId);
-      setStatusMap((prev) => ({ ...prev, [profileId]: 'pending_sent' }));
-    } catch (e: any) {
-      Alert.alert('Could not send request', e.message ?? 'Something went wrong.');
-    } finally {
-      setBusyId(null);
-    }
-  }
+  // useCallback so DiscoverRow's memoization below isn't defeated by a
+  // fresh closure identity on every DiscoverScreen render.
+  const handleConnect = useCallback(
+    async (profileId: string) => {
+      if (!userId) return;
+      setBusyId(profileId);
+      try {
+        await sendRequest(userId, profileId);
+        setStatusMap((prev) => ({ ...prev, [profileId]: 'pending_sent' }));
+      } catch (e: any) {
+        Alert.alert('Could not send request', e.message ?? 'Something went wrong.');
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [userId]
+  );
+
+  const handlePressProfile = useCallback(
+    (profileId: string) => navigation.navigate('PublicProfile', { profileId }),
+    [navigation]
+  );
 
   const radiusDisabled = !myMatchedCityId;
 
@@ -276,8 +294,8 @@ export default function DiscoverScreen({ navigation }: Props) {
               row={item}
               status={statusMap[item.id] ?? 'none'}
               busy={busyId === item.id}
-              onPress={() => navigation.navigate('PublicProfile', { profileId: item.id })}
-              onConnect={() => handleConnect(item.id)}
+              onPress={handlePressProfile}
+              onConnect={handleConnect}
             />
           )}
         />
@@ -286,7 +304,14 @@ export default function DiscoverScreen({ navigation }: Props) {
   );
 }
 
-function DiscoverRow({
+// Memoized so a statusMap/busyId change (handleConnect's optimistic update,
+// or the useFocusEffect's silent connection-status refresh) only re-renders
+// the rows whose own status/busy prop actually changed, not every visible
+// row -- `results` itself is untouched by either of those, so unrelated
+// rows' `row` prop keeps the same reference. Callback props are stable
+// references from DiscoverScreen (see above), not per-row closures, so the
+// memoization actually holds.
+const DiscoverRow = memo(function DiscoverRow({
   row,
   status,
   busy,
@@ -296,12 +321,16 @@ function DiscoverRow({
   row: DiscoverProfileRow;
   status: ConnectionStatusValue;
   busy: boolean;
-  onPress: () => void;
-  onConnect: () => void;
+  onPress: (profileId: string) => void;
+  onConnect: (profileId: string) => void;
 }) {
   return (
     <View className="flex-row items-center justify-between py-3 px-4 border-b border-gray-100">
-      <TouchableOpacity activeOpacity={0.7} className="flex-row items-center flex-1 mr-3" onPress={onPress}>
+      <TouchableOpacity
+        activeOpacity={0.7}
+        className="flex-row items-center flex-1 mr-3"
+        onPress={() => onPress(row.id)}
+      >
         <Avatar uri={row.avatar_url} name={row.display_name ?? row.username} size="lg" className="mr-3" />
         <View className="flex-1">
           <Text className="text-base font-semibold text-gray-900" numberOfLines={1}>
@@ -340,10 +369,10 @@ function DiscoverRow({
           <Text className="text-gray-500 text-xs font-semibold">Pending</Text>
         </View>
       ) : (
-        <TouchableOpacity className="bg-brand-primary px-4 py-2 rounded-full" onPress={onConnect}>
+        <TouchableOpacity className="bg-brand-primary px-4 py-2 rounded-full" onPress={() => onConnect(row.id)}>
           <Text className="text-white text-xs font-semibold">Connect</Text>
         </TouchableOpacity>
       )}
     </View>
   );
-}
+});
