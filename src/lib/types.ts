@@ -179,6 +179,44 @@ export interface HighlightPostRow {
 export const PROFILE_HIGHLIGHTS_SELECT =
   'profile_highlights(post_id, position, media_posts(id, media_url, media_type, thumbnail_url, caption))';
 
+// Stories (Phase 7) only ever hold image/video -- the DB CHECK constraint
+// enforces this on top of the shared 3-value media_type enum (which also
+// allows 'audio', used elsewhere). Narrower here so the client can't
+// construct an invalid story media type either.
+export type StoryMediaType = Extract<MediaType, 'image' | 'video'>;
+
+export interface Story {
+  id: string;
+  profile_id: string;
+  media_url: string;
+  media_type: StoryMediaType;
+  created_at: string;
+  expires_at: string;
+}
+
+// Shared embed fragment for an active story joined with its author, same
+// shared-select-fragment convention as PROFILE_SUMMARY_SELECT/
+// PROFILE_HIGHLIGHTS_SELECT. No FK hint needed: stories has exactly one FK
+// (to profiles), so there's no second relationship path for PostgREST to
+// find ambiguous the way profile_highlights's two FKs were (see
+// CONVENTIONS.md) -- confirmed via generate_typescript_types, not assumed.
+export const STORIES_SELECT =
+  'id, profile_id, media_url, media_type, created_at, expires_at, profiles ( id, username, display_name, avatar_url )';
+
+export interface StoryFeedRow extends Story {
+  profiles: ProfileSummary;
+}
+
+// Stories grouped by author (Phase 7) -- derived client-side from a flat
+// query result, same "no dedicated grouping query, group in a Map" pattern
+// messages.ts's listConversations() already established for conversations.
+// stories is ordered oldest-first within a group so the viewer advances
+// chronologically.
+export interface StoryGroup {
+  profile: ProfileSummary;
+  stories: Story[];
+}
+
 export interface Message {
   id: string;
   sender_id: string;

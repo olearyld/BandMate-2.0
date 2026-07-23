@@ -71,8 +71,10 @@ import {
   pickVideo,
   uploadIntroMedia,
   uploadPostMedia,
+  uploadStoryMedia,
   useMediaRecorder,
   MAX_MEDIA_DURATION_MS,
+  MAX_STORY_VIDEO_DURATION_MS,
 } from '../../src/lib/mediaUpload';
 
 function manipulatorContext(saveUri = 'compressed.jpg') {
@@ -180,6 +182,29 @@ describe('pickVideo', () => {
 
     expect(result).toEqual({ uri: 'file://clip.mov', type: 'video', thumbnailUri: undefined });
   });
+
+  it('accepts a shorter maxDurationMs override (Phase 7 stories) and passes it through as the picker duration limit', async () => {
+    mockRequestMediaLibraryPermissionsAsync.mockResolvedValue({ status: 'granted' });
+    mockLaunchImageLibraryAsync.mockResolvedValue({ canceled: true, assets: [] });
+
+    await pickVideo(MAX_STORY_VIDEO_DURATION_MS);
+
+    expect(mockLaunchImageLibraryAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ videoMaxDuration: MAX_STORY_VIDEO_DURATION_MS / 1000 })
+    );
+  });
+
+  it('rejects a video over a custom maxDurationMs with a matching error message', async () => {
+    mockRequestMediaLibraryPermissionsAsync.mockResolvedValue({ status: 'granted' });
+    mockLaunchImageLibraryAsync.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: 'file://long.mov', duration: MAX_STORY_VIDEO_DURATION_MS + 1 }],
+    });
+
+    await expect(pickVideo(MAX_STORY_VIDEO_DURATION_MS)).rejects.toThrow(
+      `Please pick a video under ${MAX_STORY_VIDEO_DURATION_MS / 1000} seconds.`
+    );
+  });
 });
 
 describe('uploadIntroMedia', () => {
@@ -266,6 +291,26 @@ describe('uploadPostMedia', () => {
     expect(mockUpload.mock.calls[1][0]).toMatch(/^u1\/posts\/[a-z0-9]+_thumb\.jpg$/);
     expect(mockUpload.mock.calls[1][2]).toEqual(expect.objectContaining({ contentType: 'image/jpeg' }));
     expect(result.thumbnailUrl).toBe('https://cdn/media/u1/posts/x_thumb.jpg');
+  });
+});
+
+describe('uploadStoryMedia', () => {
+  it('uploads to a unique {userId}/stories/{id}.{ext} path with no thumbnail return value', async () => {
+    mockUpload.mockResolvedValue({ error: null });
+    mockGetPublicUrl.mockReturnValue({ data: { publicUrl: 'https://cdn/media/u1/stories/x.jpg' } });
+
+    const result = await uploadStoryMedia('u1', { uri: 'file://photo.jpg', type: 'image' });
+
+    expect(mockUpload).toHaveBeenCalledTimes(1);
+    expect(mockUpload.mock.calls[0][0]).toMatch(/^u1\/stories\/[a-z0-9]+\.jpg$/);
+    expect(result).toEqual({ url: 'https://cdn/media/u1/stories/x.jpg' });
+  });
+
+  it('propagates a storage upload error', async () => {
+    mockUpload.mockResolvedValue({ error: new Error('bucket denied') });
+    await expect(
+      uploadStoryMedia('u1', { uri: 'file://x.jpg', type: 'image' })
+    ).rejects.toThrow('bucket denied');
   });
 });
 

@@ -19,6 +19,8 @@ import MyProfileScreen from '../screens/profile/MyProfileScreen';
 import PublicProfileScreen from '../screens/profile/PublicProfileScreen';
 import PostDetailScreen from '../screens/PostDetailScreen';
 import CreatePostScreen from '../screens/CreatePostScreen';
+import CreateStoryScreen from '../screens/CreateStoryScreen';
+import StoryViewerScreen from '../screens/StoryViewerScreen';
 import { OnboardingProvider } from './OnboardingContext';
 import { useAppContext } from './AppContext';
 import { getUnreadCount, subscribeToUnreadCount } from '../lib/messages';
@@ -149,6 +151,16 @@ function MainNavigator() {
         name="CreatePost"
         component={CreatePostScreen}
         options={{ headerShown: true, title: 'New Post', presentation: 'modal' }}
+      />
+      <MainStack.Screen
+        name="CreateStory"
+        component={CreateStoryScreen}
+        options={{ headerShown: true, title: 'New Story', presentation: 'modal' }}
+      />
+      <MainStack.Screen
+        name="StoryViewer"
+        component={StoryViewerScreen}
+        options={{ headerShown: false, presentation: 'fullScreenModal', animation: 'fade' }}
       />
       <MainStack.Screen
         name="Thread"

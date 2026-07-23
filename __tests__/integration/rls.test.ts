@@ -93,6 +93,7 @@ const READ_ANY_AUTHENTICATED_TABLES = [
   'likes',
   'comments',
   'profile_highlights',
+  'stories',
 ] as const;
 
 describe('RLS policies', () => {
@@ -732,6 +733,108 @@ describe('RLS policies', () => {
         .maybeSingle();
       expect(data?.post_id).toBe(postBId);
     });
+  });
+
+  // ----------------------------------------------------------------- stories
+  // Deliberately doesn't use .select().single() after insert: Postgres
+  // raises the same "new row violates row-level security policy" error for
+  // an INSERT ... RETURNING when the just-inserted row is immediately
+  // invisible under the table's own SELECT policy as it does for a WITH
+  // CHECK failure -- which the already-expired-story test below needs to
+  // exercise on purpose. Generating the id client-side and inserting it
+  // explicitly sidesteps RETURNING (and its RLS-visibility quirk) entirely,
+  // and works uniformly for both the active and already-expired cases.
+  async function withDisposableStory(
+    client: SupabaseClient<Database>,
+    profileId: string,
+    overrides: { expires_at?: string } = {},
+    fn: (storyId: string) => Promise<void>
+  ): Promise<void> {
+    const storyId = randomUUID();
+    const { error } = await client.from('stories').insert({
+      id: storyId,
+      profile_id: profileId,
+      media_url: `https://example.com/story-${RUN_ID}-${storyId}.jpg`,
+      media_type: 'image',
+      ...overrides,
+    });
+    if (error) throw new Error(`disposable story setup failed: ${error.message}`);
+    try {
+      await fn(storyId);
+    } finally {
+      await client.from('stories').delete().eq('id', storyId);
+    }
+  }
+
+  it('B can post their own story and read it back', async () => {
+    await withDisposableStory(clientB, userB, {}, async (storyId) => {
+      const { data, error } = await clientB.from('stories').select('id').eq('id', storyId).maybeSingle();
+      expect(error).toBeFalsy();
+      expect(data?.id).toBe(storyId);
+    });
+  });
+
+  it("A can read B's active story (public-read, same audience as media_posts)", async () => {
+    await withDisposableStory(clientB, userB, {}, async (storyId) => {
+      const { data } = await clientA.from('stories').select('id').eq('id', storyId).maybeSingle();
+      expect(data?.id).toBe(storyId);
+    });
+  });
+
+  it('A cannot insert a story under B\'s profile_id', async () => {
+    const { error } = await clientA
+      .from('stories')
+      .insert({ profile_id: userB, media_url: `https://example.com/${RUN_ID}.jpg`, media_type: 'image' });
+    expect(error).toBeTruthy();
+  });
+
+  it('rejects an insert with an expires_at further out than 24 hours -- the bound closing the "eternal story" loophole', async () => {
+    const farFuture = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+    const { error } = await clientB.from('stories').insert({
+      profile_id: userB,
+      media_url: `https://example.com/${RUN_ID}.jpg`,
+      media_type: 'image',
+      expires_at: farFuture,
+    });
+    expect(error).toBeTruthy();
+  });
+
+  it('an already-expired story is not readable by its own owner or anyone else -- the expiry check is baked into the read policy itself', async () => {
+    const past = new Date(Date.now() - 60 * 1000).toISOString();
+    await withDisposableStory(clientB, userB, { expires_at: past }, async (storyId) => {
+      const { data: ownerRead } = await clientB.from('stories').select('id').eq('id', storyId).maybeSingle();
+      expect(ownerRead).toBeNull();
+      const { data: otherRead } = await clientA.from('stories').select('id').eq('id', storyId).maybeSingle();
+      expect(otherRead).toBeNull();
+    });
+  });
+
+  it("A cannot delete B's story", async () => {
+    await withDisposableStory(clientB, userB, {}, async (storyId) => {
+      await clientA.from('stories').delete().eq('id', storyId);
+      const { data } = await clientB.from('stories').select('id').eq('id', storyId).maybeSingle();
+      expect(data).toBeTruthy();
+    });
+  });
+
+  it('B can delete their own story', async () => {
+    await withDisposableStory(clientB, userB, {}, async (storyId) => {
+      const { error } = await clientB.from('stories').delete().eq('id', storyId);
+      expect(error).toBeFalsy();
+      const { data } = await clientB.from('stories').select('id').eq('id', storyId).maybeSingle();
+      expect(data).toBeNull();
+    });
+  });
+
+  it('unauthenticated cannot read or insert stories', async () => {
+    await withDisposableStory(clientB, userB, {}, async (storyId) => {
+      const { data } = await anonClient.from('stories').select('id').eq('id', storyId).maybeSingle();
+      expect(data).toBeNull();
+    });
+    const { error } = await anonClient
+      .from('stories')
+      .insert({ profile_id: userB, media_url: `https://example.com/${RUN_ID}.jpg`, media_type: 'image' });
+    expect(error).toBeTruthy();
   });
 
   // ----------------------------------------------------------- unauthenticated

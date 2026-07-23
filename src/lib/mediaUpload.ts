@@ -13,8 +13,14 @@ import { supabase } from './supabase';
 import type { MediaType } from './types';
 
 export const MAX_MEDIA_DURATION_MS = 60_000;
+// Stories get a shorter video cap than feed posts (Phase 7) -- 15s matches the
+// short-form-segment convention other story formats use (Instagram/Snapchat),
+// and fits the format's quick, disposable nature better than reusing the 60s
+// feed-post cap. Photo resize/compression (MAX_IMAGE_DIMENSION/quality below)
+// is intentionally left unchanged for stories: it targets display quality on a
+// full-screen phone viewer, not duration, and 1600px already suits that.
+export const MAX_STORY_VIDEO_DURATION_MS = 15_000;
 
-const MAX_VIDEO_DURATION_SECONDS = MAX_MEDIA_DURATION_MS / 1000;
 const MAX_IMAGE_DIMENSION = 1600;
 const IMAGE_COMPRESS_QUALITY = 0.8;
 const STORAGE_BUCKET = 'media';
@@ -57,25 +63,26 @@ async function compressImage(uri: string, width: number): Promise<string> {
 }
 
 /**
- * Picks a video from the library (capped at 60s / medium quality) and generates
- * a thumbnail. Returns null if the user cancels. Throws if permission is denied
- * or the picked video exceeds the duration cap.
+ * Picks a video from the library (medium quality) and generates a thumbnail.
+ * Returns null if the user cancels. Throws if permission is denied or the
+ * picked video exceeds maxDurationMs (60s for feed posts by default; pass
+ * MAX_STORY_VIDEO_DURATION_MS for the shorter story cap).
  */
-export async function pickVideo(): Promise<PickedMedia | null> {
+export async function pickVideo(maxDurationMs: number = MAX_MEDIA_DURATION_MS): Promise<PickedMedia | null> {
   const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (status !== 'granted') {
     throw new Error('Allow photo library access to pick a video.');
   }
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['videos'],
-    videoMaxDuration: MAX_VIDEO_DURATION_SECONDS,
+    videoMaxDuration: maxDurationMs / 1000,
     quality: ImagePicker.UIImagePickerControllerQualityType.Medium,
   });
   if (result.canceled || !result.assets[0]) return null;
 
   const asset = result.assets[0];
-  if (asset.duration && asset.duration > MAX_MEDIA_DURATION_MS) {
-    throw new Error('Please pick a video under 60 seconds.');
+  if (asset.duration && asset.duration > maxDurationMs) {
+    throw new Error(`Please pick a video under ${maxDurationMs / 1000} seconds.`);
   }
 
   let thumbnailUri: string | undefined;
@@ -197,4 +204,17 @@ export async function uploadPostMedia(
     );
   }
   return { url, thumbnailUrl };
+}
+
+/**
+ * Uploads a story's media to a unique per-story path (Phase 7) -- same
+ * unique-per-item reasoning as uploadPostMedia, under its own `stories/`
+ * prefix. No thumbnail: the stories table has no thumbnail_url column --
+ * the tray uses the author's profile avatar, not a per-story thumbnail.
+ */
+export async function uploadStoryMedia(userId: string, media: PickedMedia): Promise<{ url: string }> {
+  const ext = extensionFor(media.uri, media.type);
+  const id = randomId();
+  const url = await uploadToStorage(media.uri, `${userId}/stories/${id}.${ext}`, mimeTypeFor(ext));
+  return { url };
 }

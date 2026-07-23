@@ -13,10 +13,12 @@ import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { supabase } from '../lib/supabase';
 import { useAppContext } from '../navigation/AppContext';
+import { listActiveStoryGroups } from '../lib/stories';
 import type { MainTabParamList, MainStackParamList } from '../navigation/types';
-import type { FeedPostRow } from '../lib/types';
+import type { FeedPostRow, StoryGroup } from '../lib/types';
 import AudioPlayer from '../components/AudioPlayer';
 import Avatar from '../components/Avatar';
+import StoriesTray from '../components/StoriesTray';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Feed'>,
@@ -42,6 +44,11 @@ export default function FeedScreen({ navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [storyGroups, setStoryGroups] = useState<StoryGroup[]>([]);
+
+  const refreshStoryGroups = useCallback(() => {
+    listActiveStoryGroups().then(setStoryGroups).catch(() => {});
+  }, []);
 
   const fetchPage = useCallback(async (page: number): Promise<FeedPostRow[]> => {
     const from = page * PAGE_SIZE;
@@ -78,17 +85,21 @@ export default function FeedScreen({ navigation }: Props) {
       if (isFirstFocus.current) {
         isFirstFocus.current = false;
         loadInitial();
+        refreshStoryGroups();
         return;
       }
-      // Silent refresh on refocus (e.g. returning from Create Post or Post Detail)
-      // so new posts / updated like counts show up without a jarring full-screen spinner.
+      // Silent refresh on refocus (e.g. returning from Create Post, Post Detail,
+      // Create Story, or the Story Viewer) so new posts / updated like counts /
+      // newly-posted or newly-expired stories show up without a jarring
+      // full-screen spinner.
       fetchPage(0)
         .then((rows) => {
           setPosts(rows);
           setHasMore(rows.length === PAGE_SIZE);
         })
         .catch(() => {});
-    }, [loadInitial, fetchPage])
+      refreshStoryGroups();
+    }, [loadInitial, fetchPage, refreshStoryGroups])
   );
 
   async function handleRefresh() {
@@ -165,6 +176,14 @@ export default function FeedScreen({ navigation }: Props) {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#6C47FF" />}
           onEndReachedThreshold={0.5}
           onEndReached={handleLoadMore}
+          ListHeaderComponent={
+            <StoriesTray
+              groups={storyGroups}
+              currentUserId={currentUserId}
+              onPressAdd={() => navigation.navigate('CreateStory')}
+              onPressGroup={(index) => navigation.navigate('StoryViewer', { groups: storyGroups, startIndex: index })}
+            />
+          }
           ListEmptyComponent={
             <View className="items-center justify-center px-6 py-24">
               <Text className="text-2xl font-bold text-gray-900 mb-2">Feed</Text>
