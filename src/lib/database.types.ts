@@ -304,6 +304,42 @@ export type Database = {
           },
         ]
       }
+      profile_highlights: {
+        Row: {
+          created_at: string
+          position: number
+          post_id: string
+          profile_id: string
+        }
+        Insert: {
+          created_at?: string
+          position: number
+          post_id: string
+          profile_id: string
+        }
+        Update: {
+          created_at?: string
+          position?: number
+          post_id?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_highlights_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "media_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_highlights_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profile_instruments: {
         Row: {
           instrument_id: number
@@ -464,6 +500,10 @@ export type Database = {
         }[]
       }
       get_push_webhook_secret: { Args: never; Returns: string }
+      reorder_profile_highlights: {
+        Args: { p_post_ids: string[] }
+        Returns: undefined
+      }
     }
     Enums: {
       availability_status:

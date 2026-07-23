@@ -163,6 +163,22 @@ export interface ConnectionListItem {
   otherProfile: ProfileSummary;
 }
 
+// A row in profile_highlights (Phase 6a) joined with the fields of its
+// pinned media_posts row needed to render a thumbnail — the shape matching
+// PROFILE_HIGHLIGHTS_SELECT below, same convention as FeedPostRow/PostDetailRow.
+export interface HighlightPostRow {
+  post_id: string;
+  position: number;
+  media_posts: Pick<MediaPost, 'id' | 'media_url' | 'media_type' | 'thumbnail_url' | 'caption'>;
+}
+
+// Shared embed fragment for a profile's highlight reel (Phase 6a) — used by both
+// MyProfileScreen and PublicProfileScreen's profile queries, same
+// shared-select-fragment convention as PROFILE_SUMMARY_SELECT above. Always pair
+// with `.order('position', { referencedTable: 'profile_highlights' })` on the query.
+export const PROFILE_HIGHLIGHTS_SELECT =
+  'profile_highlights(post_id, position, media_posts(id, media_url, media_type, thumbnail_url, caption))';
+
 export interface Message {
   id: string;
   sender_id: string;
@@ -186,6 +202,7 @@ export interface ConversationSummary {
 export interface FullProfile extends Profile {
   profile_instruments: { skill_level: ExperienceLevel; instruments: Instrument }[];
   profile_genres: { genre_id: number; genres: Genre }[];
+  profile_highlights: HighlightPostRow[];
 }
 
 export interface PostAuthor {

@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, ActivityIndicator, Alert } from 'react-na
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { supabase } from '../../lib/supabase';
 import { useAppContext } from '../../navigation/AppContext';
-import type { FullProfile, ConnectionStatusInfo } from '../../lib/types';
+import { PROFILE_HIGHLIGHTS_SELECT, type FullProfile, type ConnectionStatusInfo } from '../../lib/types';
 import type { MainStackParamList } from '../../navigation/types';
 import ProfileBody from '../../components/ProfileBody';
 import { acceptRequest, cancelOrDeclineOrRemove, getConnectionStatus, sendRequest } from '../../lib/connections';
@@ -33,9 +33,11 @@ export default function PublicProfileScreen({ route }: Props) {
         .select(`
           *,
           profile_instruments(skill_level, instruments(id, name)),
-          profile_genres(genre_id, genres(id, name))
+          profile_genres(genre_id, genres(id, name)),
+          ${PROFILE_HIGHLIGHTS_SELECT}
         `)
         .eq('id', profileId)
+        .order('position', { referencedTable: 'profile_highlights' })
         .returns<FullProfile>()
         .single();
       if (err) setProfileError(err.message);

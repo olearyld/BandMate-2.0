@@ -11,16 +11,19 @@ import {
 } from 'react-native';
 import { pickImage, pickVideo, useMediaRecorder, uploadIntroMedia, type PickedMedia } from '../../lib/mediaUpload';
 import { supabase } from '../../lib/supabase';
+import { saveHighlights } from '../../lib/highlights';
 import {
   SKILL_LEVELS,
   AVAILABILITY_STATUSES,
+  PROFILE_HIGHLIGHTS_SELECT,
   type FullProfile,
   type Instrument,
   type Genre,
   type ExperienceLevel,
   type AvailabilityStatus,
+  type MediaPost,
 } from '../../lib/types';
-import ProfileBody from '../../components/ProfileBody';
+import ProfileBody, { HighlightThumb } from '../../components/ProfileBody';
 import AudioPlayer from '../../components/AudioPlayer';
 import CityPicker, { type CityPickerValue } from '../../components/CityPicker';
 import ChipToggleGroup, { toggleInSet } from '../../components/ChipToggleGroup';
@@ -29,6 +32,7 @@ export default function MyProfileScreen() {
   const [profile, setProfile] = useState<FullProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
+  const [managingHighlights, setManagingHighlights] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSignOut() {
@@ -44,9 +48,11 @@ export default function MyProfileScreen() {
       .select(`
         *,
         profile_instruments(skill_level, instruments(id, name)),
-        profile_genres(genre_id, genres(id, name))
+        profile_genres(genre_id, genres(id, name)),
+        ${PROFILE_HIGHLIGHTS_SELECT}
       `)
       .eq('id', user.id)
+      .order('position', { referencedTable: 'profile_highlights' })
       .returns<FullProfile>()
       .single();
     if (err) setError(err.message);
@@ -81,6 +87,16 @@ export default function MyProfileScreen() {
     );
   }
 
+  if (managingHighlights) {
+    return (
+      <ManageHighlightsPanel
+        profile={profile}
+        onSaved={() => { setManagingHighlights(false); loadProfile(); }}
+        onCancel={() => setManagingHighlights(false)}
+      />
+    );
+  }
+
   return (
     <View className="flex-1">
       <View className="absolute top-12 left-4 z-10">
@@ -96,7 +112,7 @@ export default function MyProfileScreen() {
           <Text className="text-white font-semibold text-sm">Edit</Text>
         </TouchableOpacity>
       </View>
-      <ProfileBody profile={profile} />
+      <ProfileBody profile={profile} onManageHighlights={() => setManagingHighlights(true)} />
     </View>
   );
 }
@@ -389,6 +405,159 @@ function EditProfileForm({
       <View className="absolute bottom-0 left-0 right-0 px-6 py-4 bg-white border-t border-gray-100">
         <TouchableOpacity className="bg-brand-primary rounded-lg py-4 items-center" onPress={handleSave} disabled={saving}>
           {saving ? <ActivityIndicator color="#fff" /> : <Text className="text-white font-semibold text-base">Save changes</Text>}
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Owner-only manage flow for the highlight reel (Phase 6a): pick up to 6 of
+ * the profile's own ready posts, reorder the selection with up/down controls
+ * (no existing drag-reorder pattern elsewhere in the app to follow — this is
+ * the simplest reasonable interaction), then save via one reorder_profile_highlights
+ * call. The client-side 6-cap here is just a fast UI disable; the DB trigger
+ * is the real enforcement (see CONVENTIONS.md).
+ */
+function ManageHighlightsPanel({
+  profile,
+  onSaved,
+  onCancel,
+}: {
+  profile: FullProfile;
+  onSaved: () => void;
+  onCancel: () => void;
+}) {
+  const [posts, setPosts] = useState<MediaPost[]>([]);
+  const [postsLoading, setPostsLoading] = useState(true);
+  const [selected, setSelected] = useState<string[]>(
+    profile.profile_highlights.map((h) => h.post_id)
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadPosts() {
+      const { data, error: err } = await supabase
+        .from('media_posts')
+        .select('id, profile_id, media_url, media_type, caption, tags, thumbnail_url, status, created_at')
+        .eq('profile_id', profile.id)
+        .eq('status', 'ready')
+        .order('created_at', { ascending: false })
+        .returns<MediaPost[]>();
+      if (!err) setPosts(data ?? []);
+      setPostsLoading(false);
+    }
+    loadPosts();
+  }, [profile.id]);
+
+  function toggle(postId: string) {
+    setSelected((prev) => {
+      if (prev.includes(postId)) return prev.filter((id) => id !== postId);
+      if (prev.length >= 6) return prev;
+      return [...prev, postId];
+    });
+  }
+
+  function move(postId: string, direction: -1 | 1) {
+    setSelected((prev) => {
+      const idx = prev.indexOf(postId);
+      const nextIdx = idx + direction;
+      if (nextIdx < 0 || nextIdx >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[nextIdx]] = [next[nextIdx], next[idx]];
+      return next;
+    });
+  }
+
+  async function handleSave() {
+    setError(null);
+    setSaving(true);
+    try {
+      await saveHighlights(selected);
+      onSaved();
+    } catch (e: any) {
+      setError(e.message ?? 'Could not save highlights.');
+      setSaving(false);
+    }
+  }
+
+  const postById = new Map(posts.map((p) => [p.id, p]));
+  const selectedPosts = selected.map((id) => postById.get(id)).filter((p): p is MediaPost => !!p);
+
+  return (
+    <View className="flex-1 bg-white">
+      <ScrollView contentContainerClassName="px-6 py-10 pb-32">
+        <View className="flex-row items-center justify-between mb-6">
+          <Text className="text-2xl font-bold text-gray-900">Manage highlights</Text>
+          <TouchableOpacity onPress={onCancel}>
+            <Text className="text-gray-500">Cancel</Text>
+          </TouchableOpacity>
+        </View>
+
+        {error && (
+          <View className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-4">
+            <Text className="text-red-700 text-sm">{error}</Text>
+          </View>
+        )}
+
+        <Text className="text-sm font-semibold text-gray-700 mb-3">Selected ({selected.length}/6)</Text>
+        {selectedPosts.length === 0 ? (
+          <Text className="text-sm text-gray-400 mb-6">Tap posts below to pin them here.</Text>
+        ) : (
+          <View className="mb-6">
+            {selectedPosts.map((post, idx) => (
+              <View key={post.id} className="flex-row items-center gap-3 mb-2">
+                <View className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100">
+                  <HighlightThumb post={post} />
+                </View>
+                <Text className="flex-1 text-sm text-gray-700" numberOfLines={1}>
+                  {post.caption || post.media_type}
+                </Text>
+                <TouchableOpacity disabled={idx === 0} onPress={() => move(post.id, -1)}>
+                  <Text className={idx === 0 ? 'text-gray-200' : 'text-gray-500 text-base'}>↑</Text>
+                </TouchableOpacity>
+                <TouchableOpacity disabled={idx === selectedPosts.length - 1} onPress={() => move(post.id, 1)}>
+                  <Text className={idx === selectedPosts.length - 1 ? 'text-gray-200' : 'text-gray-500 text-base'}>↓</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => toggle(post.id)}>
+                  <Text className="text-red-500 text-sm font-medium">Remove</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
+
+        <Text className="text-sm font-semibold text-gray-700 mb-3">Your posts</Text>
+        {postsLoading ? (
+          <ActivityIndicator color="#6C47FF" />
+        ) : posts.length === 0 ? (
+          <Text className="text-sm text-gray-400">No posts yet — create one from the Feed tab first.</Text>
+        ) : (
+          <View className="flex-row flex-wrap gap-3">
+            {posts.map((post) => {
+              const isSelected = selected.includes(post.id);
+              const disabledByCap = !isSelected && selected.length >= 6;
+              return (
+                <TouchableOpacity
+                  key={post.id}
+                  disabled={disabledByCap}
+                  onPress={() => toggle(post.id)}
+                  className={`w-20 h-20 rounded-lg overflow-hidden ${
+                    isSelected ? 'border-2 border-brand-primary' : 'border border-gray-200'
+                  } ${disabledByCap ? 'opacity-40' : ''}`}
+                >
+                  <HighlightThumb post={post} />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+      </ScrollView>
+
+      <View className="absolute bottom-0 left-0 right-0 px-6 py-4 bg-white border-t border-gray-100">
+        <TouchableOpacity className="bg-brand-primary rounded-lg py-4 items-center" onPress={handleSave} disabled={saving}>
+          {saving ? <ActivityIndicator color="#fff" /> : <Text className="text-white font-semibold text-base">Save highlights</Text>}
         </TouchableOpacity>
       </View>
     </View>

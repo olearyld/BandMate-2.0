@@ -23,7 +23,7 @@ type Props = NativeStackScreenProps<MainStackParamList, 'PostDetail'>;
 
 const POST_DETAIL_SELECT = `
   id, profile_id, media_url, media_type, caption, tags, thumbnail_url, status, created_at,
-  profiles ( username, display_name, avatar_url ),
+  profiles!media_posts_profile_id_fkey ( username, display_name, avatar_url ),
   likes ( user_id ),
   comments ( id, post_id, user_id, body, created_at, profiles ( username, display_name, avatar_url ) )
 `;

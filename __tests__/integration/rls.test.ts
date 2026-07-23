@@ -92,6 +92,7 @@ const READ_ANY_AUTHENTICATED_TABLES = [
   'messages',
   'likes',
   'comments',
+  'profile_highlights',
 ] as const;
 
 describe('RLS policies', () => {
@@ -533,6 +534,204 @@ describe('RLS policies', () => {
       .from('push_tokens')
       .insert({ profile_id: userB, expo_push_token: `ExponentPushToken[rls-test-anon-${RUN_ID}]`, platform: 'ios' });
     expect(error).toBeTruthy();
+  });
+
+  // ------------------------------------------------------ profile_highlights
+  // Phase 6a. Reuses postBId (B's disposable fixture post, see media_posts
+  // above) for the single-row cases; the cap/reorder tests create their own
+  // throwaway posts since they need more than one.
+  async function withDisposableHighlight(
+    client: SupabaseClient<Database>,
+    profileId: string,
+    postId: string,
+    position: number,
+    fn: () => Promise<void>
+  ): Promise<void> {
+    const { error } = await client
+      .from('profile_highlights')
+      .insert({ profile_id: profileId, post_id: postId, position });
+    if (error) throw new Error(`disposable highlight setup failed: ${error.message}`);
+    try {
+      await fn();
+    } finally {
+      await client.from('profile_highlights').delete().eq('profile_id', profileId).eq('post_id', postId);
+    }
+  }
+
+  it('B can pin their own post as a highlight and read it back', async () => {
+    await withDisposableHighlight(clientB, userB, postBId, 0, async () => {
+      const { data, error } = await clientB
+        .from('profile_highlights')
+        .select('post_id')
+        .eq('profile_id', userB)
+        .eq('post_id', postBId)
+        .maybeSingle();
+      expect(error).toBeFalsy();
+      expect(data?.post_id).toBe(postBId);
+    });
+  });
+
+  it("A can read B's highlight (public-read, same audience as media_posts)", async () => {
+    await withDisposableHighlight(clientB, userB, postBId, 0, async () => {
+      const { data } = await clientA
+        .from('profile_highlights')
+        .select('post_id')
+        .eq('profile_id', userB)
+        .eq('post_id', postBId)
+        .maybeSingle();
+      expect(data?.post_id).toBe(postBId);
+    });
+  });
+
+  it("A cannot pin B's post to A's own profile_id (post-ownership check in the insert policy)", async () => {
+    const { error } = await clientA
+      .from('profile_highlights')
+      .insert({ profile_id: userA, post_id: postBId, position: 0 });
+    expect(error).toBeTruthy();
+  });
+
+  it("A cannot insert a highlight row under B's profile_id", async () => {
+    const { error } = await clientA
+      .from('profile_highlights')
+      .insert({ profile_id: userB, post_id: postBId, position: 0 });
+    expect(error).toBeTruthy();
+  });
+
+  it("A cannot delete B's highlight", async () => {
+    await withDisposableHighlight(clientB, userB, postBId, 0, async () => {
+      await clientA.from('profile_highlights').delete().eq('profile_id', userB).eq('post_id', postBId);
+      const { data } = await clientB
+        .from('profile_highlights')
+        .select('post_id')
+        .eq('profile_id', userB)
+        .eq('post_id', postBId)
+        .maybeSingle();
+      expect(data).toBeTruthy();
+    });
+  });
+
+  it('B can remove their own highlight', async () => {
+    await withDisposableHighlight(clientB, userB, postBId, 0, async () => {
+      const { error } = await clientB
+        .from('profile_highlights')
+        .delete()
+        .eq('profile_id', userB)
+        .eq('post_id', postBId);
+      expect(error).toBeFalsy();
+      const { data } = await clientB
+        .from('profile_highlights')
+        .select('post_id')
+        .eq('profile_id', userB)
+        .eq('post_id', postBId)
+        .maybeSingle();
+      expect(data).toBeNull();
+    });
+  });
+
+  it('unauthenticated cannot read or insert profile_highlights', async () => {
+    await withDisposableHighlight(clientB, userB, postBId, 0, async () => {
+      const { data } = await anonClient
+        .from('profile_highlights')
+        .select('post_id')
+        .eq('profile_id', userB)
+        .eq('post_id', postBId)
+        .maybeSingle();
+      expect(data).toBeNull();
+    });
+    const { error } = await anonClient
+      .from('profile_highlights')
+      .insert({ profile_id: userB, post_id: postBId, position: 0 });
+    expect(error).toBeTruthy();
+  });
+
+  it('the cap trigger rejects a 7th highlight for the same profile', async () => {
+    const postIds: string[] = [];
+    try {
+      for (let i = 0; i < 7; i++) {
+        const { data: post, error: postErr } = await clientB
+          .from('media_posts')
+          .insert({ profile_id: userB, media_url: `https://example.com/cap-${RUN_ID}-${i}.jpg`, media_type: 'image' })
+          .select('id')
+          .single();
+        if (postErr || !post) throw new Error(`cap test post setup failed: ${postErr?.message}`);
+        postIds.push(post.id);
+
+        const { error: highlightErr } = await clientB
+          .from('profile_highlights')
+          .insert({ profile_id: userB, post_id: post.id, position: i });
+
+        if (i < 6) {
+          expect(highlightErr).toBeFalsy();
+        } else {
+          expect(highlightErr).toBeTruthy();
+        }
+      }
+    } finally {
+      await clientB.from('profile_highlights').delete().eq('profile_id', userB).in('post_id', postIds);
+      await clientB.from('media_posts').delete().in('id', postIds);
+    }
+  });
+
+  it('reorder_profile_highlights replaces the full ordered list atomically', async () => {
+    const postIds: string[] = [];
+    try {
+      for (let i = 0; i < 3; i++) {
+        const { data: post, error: postErr } = await clientB
+          .from('media_posts')
+          .insert({ profile_id: userB, media_url: `https://example.com/reorder-${RUN_ID}-${i}.jpg`, media_type: 'image' })
+          .select('id')
+          .single();
+        if (postErr || !post) throw new Error(`reorder test post setup failed: ${postErr?.message}`);
+        postIds.push(post.id);
+      }
+
+      const { error: rpcErr } = await clientB.rpc('reorder_profile_highlights', { p_post_ids: postIds });
+      expect(rpcErr).toBeFalsy();
+
+      const { data } = await clientB
+        .from('profile_highlights')
+        .select('post_id, position')
+        .eq('profile_id', userB)
+        .in('post_id', postIds)
+        .order('position', { ascending: true });
+      expect(data?.map((r) => r.post_id)).toEqual(postIds);
+
+      // Reverse the order in one call -- the delete-and-reinsert approach means
+      // this can't transiently collide with unique(profile_id, position).
+      const reversed = [...postIds].reverse();
+      const { error: rpcErr2 } = await clientB.rpc('reorder_profile_highlights', { p_post_ids: reversed });
+      expect(rpcErr2).toBeFalsy();
+
+      const { data: after } = await clientB
+        .from('profile_highlights')
+        .select('post_id, position')
+        .eq('profile_id', userB)
+        .in('post_id', postIds)
+        .order('position', { ascending: true });
+      expect(after?.map((r) => r.post_id)).toEqual(reversed);
+    } finally {
+      await clientB.from('profile_highlights').delete().eq('profile_id', userB).in('post_id', postIds);
+      await clientB.from('media_posts').delete().in('id', postIds);
+    }
+  });
+
+  it("reorder_profile_highlights rejects post ids the caller doesn't own", async () => {
+    const { error } = await clientA.rpc('reorder_profile_highlights', { p_post_ids: [postBId] });
+    expect(error).toBeTruthy();
+  });
+
+  it('reorder_profile_highlights resolves auth.uid() internally -- calling it as A never touches B\'s reel', async () => {
+    await withDisposableHighlight(clientB, userB, postBId, 0, async () => {
+      const { error } = await clientA.rpc('reorder_profile_highlights', { p_post_ids: [] });
+      expect(error).toBeFalsy();
+      const { data } = await clientB
+        .from('profile_highlights')
+        .select('post_id')
+        .eq('profile_id', userB)
+        .eq('post_id', postBId)
+        .maybeSingle();
+      expect(data?.post_id).toBe(postBId);
+    });
   });
 
   // ----------------------------------------------------------- unauthenticated

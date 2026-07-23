@@ -27,7 +27,7 @@ const PAGE_SIZE = 10;
 
 const FEED_SELECT = `
   id, profile_id, media_url, media_type, caption, tags, thumbnail_url, status, created_at,
-  profiles ( username, display_name, avatar_url ),
+  profiles!media_posts_profile_id_fkey ( username, display_name, avatar_url ),
   likes ( user_id ),
   comments ( id )
 `;

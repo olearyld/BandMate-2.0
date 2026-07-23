@@ -1,6 +1,6 @@
-import { View, Text, Image, ScrollView } from 'react-native';
+import { View, Text, Image, ScrollView, TouchableOpacity } from 'react-native';
 import type { ReactNode } from 'react';
-import { AVAILABILITY_STATUSES, type FullProfile } from '../lib/types';
+import { AVAILABILITY_STATUSES, type FullProfile, type MediaType } from '../lib/types';
 import AudioPlayer from './AudioPlayer';
 import Avatar from './Avatar';
 import VideoPlayerBlock from './VideoPlayerBlock';
@@ -9,17 +9,49 @@ const AVAILABILITY_LABELS = Object.fromEntries(
   AVAILABILITY_STATUSES.map((s) => [s.value, s.label])
 );
 
+/** A small square thumbnail for a highlighted post — used both by the read-only
+ * reel here and by MyProfileScreen's manage panel, so the media-type-specific
+ * rendering (image/video-with-play-icon/audio-icon) lives in one place. */
+export function HighlightThumb({
+  post,
+}: {
+  post: { media_url: string; media_type: MediaType; thumbnail_url: string | null };
+}) {
+  if (post.media_type === 'image') {
+    return <Image source={{ uri: post.media_url }} className="w-full h-full" resizeMode="cover" />;
+  }
+  if (post.media_type === 'video') {
+    return (
+      <View className="w-full h-full bg-gray-900 items-center justify-center">
+        {post.thumbnail_url ? (
+          <Image source={{ uri: post.thumbnail_url }} className="w-full h-full absolute" resizeMode="cover" />
+        ) : null}
+        <Text className="text-white text-lg">▶</Text>
+      </View>
+    );
+  }
+  return (
+    <View className="w-full h-full bg-purple-50 items-center justify-center">
+      <Text className="text-lg">🎵</Text>
+    </View>
+  );
+}
+
 export default function ProfileBody({
   profile,
   actionSlot,
+  onManageHighlights,
 }: {
   profile: FullProfile;
   /** Rendered in the header, below the experience badge — e.g. PublicProfileScreen's connect button. */
   actionSlot?: ReactNode;
+  /** Owner-only "Manage" affordance on the Highlights section — omitted entirely for a viewer. */
+  onManageHighlights?: () => void;
 }) {
   const instruments = profile.profile_instruments;
   const genres = profile.profile_genres;
   const availability = profile.availability_statuses;
+  const highlights = profile.profile_highlights;
 
   return (
     <ScrollView className="flex-1 bg-white" contentContainerClassName="pb-10">
@@ -49,6 +81,38 @@ export default function ProfileBody({
         )}
         {actionSlot && <View className="mt-4">{actionSlot}</View>}
       </View>
+
+      {/* Highlights — shown for a viewer only when non-empty (no empty state,
+          same convention as Availability below); shown for the owner
+          (onManageHighlights present) even when empty, so the manage
+          affordance is discoverable. */}
+      {(highlights.length > 0 || onManageHighlights) && (
+        <View className="px-6 py-6 border-b border-gray-100">
+          <View className="flex-row items-center justify-between mb-3">
+            <Text className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+              Highlights
+            </Text>
+            {onManageHighlights && (
+              <TouchableOpacity onPress={onManageHighlights}>
+                <Text className="text-brand-primary text-xs font-semibold">Manage</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {highlights.length === 0 ? (
+            <Text className="text-sm text-gray-400">No highlights yet.</Text>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View className="flex-row gap-3">
+                {highlights.map((h) => (
+                  <View key={h.post_id} className="w-24 h-24 rounded-xl overflow-hidden bg-gray-100">
+                    <HighlightThumb post={h.media_posts} />
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
+          )}
+        </View>
+      )}
 
       {/* Availability — only shown when set, no empty state (noise on a profile that hasn't set it) */}
       {availability.length > 0 && (
