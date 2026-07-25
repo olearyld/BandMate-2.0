@@ -10,6 +10,7 @@ import {
 import { postStory } from '../lib/stories';
 import { useAppContext } from '../navigation/AppContext';
 import type { MainStackParamList } from '../navigation/types';
+import { useTheme } from '../theme/ThemeProvider';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'CreateStory'>;
 
@@ -19,6 +20,7 @@ type Props = NativeStackScreenProps<MainStackParamList, 'CreateStory'>;
 // neither column, unlike media_posts.
 export default function CreateStoryScreen({ navigation }: Props) {
   const { session } = useAppContext();
+  const { colors } = useTheme();
   const [media, setMedia] = useState<PickedMedia | null>(null);
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,24 +66,24 @@ export default function CreateStoryScreen({ navigation }: Props) {
   }
 
   return (
-    <View className="flex-1 bg-white">
+    <View className="flex-1 bg-background">
       <View className="flex-1 px-6 py-6">
         {error && (
-          <View className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-4">
-            <Text className="text-red-700 text-sm">{error}</Text>
+          <View className="bg-danger-subtle border border-danger-line rounded-lg px-4 py-3 mb-4">
+            <Text className="text-danger text-sm">{error}</Text>
           </View>
         )}
 
-        <Text className="text-sm font-medium text-gray-700 mb-3">Your story</Text>
+        <Text className="text-sm font-medium text-foreground-secondary mb-3">Your story</Text>
 
         {media && media.type === 'image' && (
           <Image source={{ uri: media.uri }} className="w-full h-96 rounded-xl mb-4" resizeMode="cover" />
         )}
         {media && media.type === 'video' && (
-          <View className="bg-gray-100 rounded-xl p-4 mb-4 items-center h-96 justify-center">
-            <Text className="text-gray-600 font-medium">🎬 Video selected</Text>
+          <View className="bg-surface-alt rounded-xl p-4 mb-4 items-center h-96 justify-center">
+            <Text className="text-foreground-secondary font-medium">🎬 Video selected</Text>
             <TouchableOpacity onPress={() => setMedia(null)} className="mt-2">
-              <Text className="text-brand-secondary text-sm">Remove</Text>
+              <Text className="text-accent text-sm">Remove</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -89,37 +91,37 @@ export default function CreateStoryScreen({ navigation }: Props) {
         {!media && (
           <View className="flex-row gap-3 mb-3">
             <TouchableOpacity
-              className="flex-1 border border-gray-300 rounded-lg py-3 items-center"
+              className="flex-1 border border-border rounded-lg py-3 items-center"
               onPress={handlePickPhoto}
             >
               <Text className="text-2xl mb-1">📷</Text>
-              <Text className="text-xs text-gray-600 font-medium">Photo</Text>
+              <Text className="text-xs text-foreground-secondary font-medium">Photo</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              className="flex-1 border border-gray-300 rounded-lg py-3 items-center"
+              className="flex-1 border border-border rounded-lg py-3 items-center"
               onPress={handlePickVideo}
             >
               <Text className="text-2xl mb-1">🎬</Text>
-              <Text className="text-xs text-gray-600 font-medium">Video</Text>
+              <Text className="text-xs text-foreground-secondary font-medium">Video</Text>
             </TouchableOpacity>
           </View>
         )}
-        <Text className="text-xs text-gray-400 text-center">
+        <Text className="text-xs text-foreground-muted text-center">
           Videos are capped at {MAX_STORY_VIDEO_DURATION_MS / 1000} seconds. Visible for 24 hours.
         </Text>
       </View>
 
-      <View className="px-6 py-4 bg-white border-t border-gray-100">
+      <View className="px-6 py-4 bg-surface border-t border-border-subtle">
         <TouchableOpacity
-          className="bg-brand-primary rounded-lg py-4 items-center"
+          className="bg-accent rounded-lg py-4 items-center"
           onPress={handlePost}
           disabled={posting || !media}
           style={{ opacity: !media ? 0.5 : 1 }}
         >
           {posting ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={colors.onAccent} />
           ) : (
-            <Text className="text-white font-semibold text-base">Post story</Text>
+            <Text className="text-on-accent font-semibold text-base">Post story</Text>
           )}
         </TouchableOpacity>
       </View>

@@ -16,10 +16,12 @@ import type { OnboardingStackParamList } from '../../navigation/types';
 import { useOnboarding } from '../../navigation/OnboardingContext';
 import { useAppContext } from '../../navigation/AppContext';
 import type { ExperienceLevel } from '../../lib/types';
+import { useTheme } from '../../theme/ThemeProvider';
 
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'Step4'>;
 
 export default function Step4Media(_props: Props) {
+  const { colors } = useTheme();
   const { draft } = useOnboarding();
   const { refreshProfile } = useAppContext();
   const [bio, setBio] = useState(draft.bio ?? '');
@@ -121,27 +123,27 @@ export default function Step4Media(_props: Props) {
   }
 
   return (
-    <View className="flex-1 bg-white">
+    <View className="flex-1 bg-background">
       <ScrollView contentContainerClassName="px-6 py-10 pb-32">
-        <Text className="text-xs font-semibold text-brand-primary mb-1 tracking-widest uppercase">
+        <Text className="text-xs font-semibold text-accent mb-1 tracking-widest uppercase">
           Step 4 of 4
         </Text>
-        <Text className="text-2xl font-bold text-gray-900 mb-1">Your intro</Text>
-        <Text className="text-sm text-gray-500 mb-8">
+        <Text className="text-2xl font-bold text-foreground mb-1">Your intro</Text>
+        <Text className="text-sm text-foreground-tertiary mb-8">
           Write a short bio and share a photo, video, or audio clip so other musicians can get a feel for you.
         </Text>
 
         {error && (
-          <View className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-4">
-            <Text className="text-red-700 text-sm">{error}</Text>
+          <View className="bg-danger-subtle border border-danger-line rounded-lg px-4 py-3 mb-4">
+            <Text className="text-danger text-sm">{error}</Text>
           </View>
         )}
 
-        <Text className="text-sm font-medium text-gray-700 mb-1">Bio</Text>
+        <Text className="text-sm font-medium text-foreground-secondary mb-1">Bio</Text>
         <TextInput
-          className="border border-gray-300 rounded-lg px-4 py-3 text-base text-gray-900 mb-6"
+          className="border border-border rounded-lg px-4 py-3 text-base text-foreground mb-6"
           placeholder="Tell other musicians about yourself..."
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.foregroundMuted}
           multiline
           numberOfLines={4}
           textAlignVertical="top"
@@ -150,60 +152,60 @@ export default function Step4Media(_props: Props) {
           style={{ minHeight: 96 }}
         />
 
-        <Text className="text-sm font-medium text-gray-700 mb-3">Intro media (optional)</Text>
+        <Text className="text-sm font-medium text-foreground-secondary mb-3">Intro media (optional)</Text>
 
         {media && media.type === 'image' && (
           <Image source={{ uri: media.uri }} className="w-full h-48 rounded-xl mb-4" resizeMode="cover" />
         )}
         {media && media.type !== 'image' && (
-          <View className="bg-gray-100 rounded-xl p-4 mb-4 items-center">
-            <Text className="text-gray-600 font-medium">
+          <View className="bg-surface-alt rounded-xl p-4 mb-4 items-center">
+            <Text className="text-foreground-secondary font-medium">
               {media.type === 'audio' ? '🎵 Audio clip recorded' : '🎬 Video selected'}
             </Text>
             <TouchableOpacity onPress={() => setMedia(null)}>
-              <Text className="text-brand-secondary text-sm mt-1">Remove</Text>
+              <Text className="text-accent text-sm mt-1">Remove</Text>
             </TouchableOpacity>
           </View>
         )}
 
         <View className="flex-row gap-3 mb-3">
           <TouchableOpacity
-            className="flex-1 border border-gray-300 rounded-lg py-3 items-center"
+            className="flex-1 border border-border rounded-lg py-3 items-center"
             onPress={handlePickPhoto}
           >
             <Text className="text-2xl mb-1">📷</Text>
-            <Text className="text-xs text-gray-600 font-medium">Photo</Text>
+            <Text className="text-xs text-foreground-secondary font-medium">Photo</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            className="flex-1 border border-gray-300 rounded-lg py-3 items-center"
+            className="flex-1 border border-border rounded-lg py-3 items-center"
             onPress={handlePickVideo}
           >
             <Text className="text-2xl mb-1">🎬</Text>
-            <Text className="text-xs text-gray-600 font-medium">Video</Text>
+            <Text className="text-xs text-foreground-secondary font-medium">Video</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            className={`flex-1 border rounded-lg py-3 items-center ${isRecording ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+            className={`flex-1 border rounded-lg py-3 items-center ${isRecording ? 'border-danger-line bg-danger-subtle' : 'border-border'}`}
             onPress={isRecording ? handleStopRecording : handleStartRecording}
           >
             <Text className="text-2xl mb-1">{isRecording ? '⏹' : '🎙'}</Text>
-            <Text className={`text-xs font-medium ${isRecording ? 'text-red-600' : 'text-gray-600'}`}>
+            <Text className={`text-xs font-medium ${isRecording ? 'text-danger' : 'text-foreground-secondary'}`}>
               {isRecording ? 'Stop' : 'Record'}
             </Text>
           </TouchableOpacity>
         </View>
-        <Text className="text-xs text-gray-400 text-center">Videos and audio clips are capped at 60 seconds.</Text>
+        <Text className="text-xs text-foreground-muted text-center">Videos and audio clips are capped at 60 seconds.</Text>
       </ScrollView>
 
-      <View className="absolute bottom-0 left-0 right-0 px-6 py-4 bg-white border-t border-gray-100">
+      <View className="absolute bottom-0 left-0 right-0 px-6 py-4 bg-surface border-t border-border-subtle">
         <TouchableOpacity
-          className="bg-brand-primary rounded-lg py-4 items-center"
+          className="bg-accent rounded-lg py-4 items-center"
           onPress={handleSave}
           disabled={saving}
         >
           {saving ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={colors.onAccent} />
           ) : (
-            <Text className="text-white font-semibold text-base">Create my profile ✓</Text>
+            <Text className="text-on-accent font-semibold text-base">Create my profile ✓</Text>
           )}
         </TouchableOpacity>
       </View>

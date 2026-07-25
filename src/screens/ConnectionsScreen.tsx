@@ -7,6 +7,7 @@ import { useAppContext } from '../navigation/AppContext';
 import type { MainTabParamList, MainStackParamList } from '../navigation/types';
 import type { ConnectionListItem } from '../lib/types';
 import Avatar from '../components/Avatar';
+import { useTheme } from '../theme/ThemeProvider';
 import {
   acceptRequest,
   cancelOrDeclineOrRemove,
@@ -25,6 +26,7 @@ type Section = 'requests' | 'sent' | 'connections';
 export default function ConnectionsScreen({ navigation }: Props) {
   const { session } = useAppContext();
   const userId = session?.user.id;
+  const { colors } = useTheme();
 
   const [section, setSection] = useState<Section>('requests');
   const [requests, setRequests] = useState<ConnectionListItem[]>([]);
@@ -132,20 +134,20 @@ export default function ConnectionsScreen({ navigation }: Props) {
   const activeList = section === 'requests' ? requests : section === 'sent' ? sent : connections;
 
   return (
-    <View className="flex-1 bg-white">
+    <View className="flex-1 bg-background">
       <View className="pt-12 px-4 pb-2">
-        <Text className="text-2xl font-bold text-gray-900 mb-4">Connections</Text>
+        <Text className="text-2xl font-bold text-foreground mb-4">Connections</Text>
         <View className="flex-row gap-2">
           {sections.map((s) => (
             <TouchableOpacity
               key={s.key}
               className={`flex-1 py-2 rounded-full border items-center ${
-                section === s.key ? 'bg-brand-primary border-brand-primary' : 'border-gray-300'
+                section === s.key ? 'bg-accent border-accent' : 'border-border'
               }`}
               onPress={() => setSection(s.key)}
             >
               <Text
-                className={`text-sm font-semibold ${section === s.key ? 'text-white' : 'text-gray-600'}`}
+                className={`text-sm font-semibold ${section === s.key ? 'text-on-accent' : 'text-foreground-secondary'}`}
               >
                 {s.label}
                 {s.count > 0 ? ` (${s.count})` : ''}
@@ -157,17 +159,17 @@ export default function ConnectionsScreen({ navigation }: Props) {
 
       {loading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#6C47FF" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       ) : error ? (
         <View className="flex-1 items-center justify-center px-6">
-          <Text className="text-red-600 text-center">{error}</Text>
+          <Text className="text-danger text-center">{error}</Text>
         </View>
       ) : (
         <ScrollView contentContainerClassName="px-4 py-4 pb-24">
           {activeList.length === 0 ? (
             <View className="items-center justify-center py-24">
-              <Text className="text-base text-gray-500 text-center">
+              <Text className="text-base text-foreground-tertiary text-center">
                 {section === 'requests' && 'No incoming requests.'}
                 {section === 'sent' && 'No pending sent requests.'}
                 {section === 'connections' && 'No connections yet.'}
@@ -184,43 +186,43 @@ export default function ConnectionsScreen({ navigation }: Props) {
                   section === 'requests' ? (
                     <View className="flex-row gap-2">
                       <TouchableOpacity
-                        className="bg-brand-primary px-3 py-1.5 rounded-full"
+                        className="bg-accent px-3 py-1.5 rounded-full"
                         disabled={busyId === item.id}
                         onPress={() => handleAccept(item)}
                       >
-                        <Text className="text-white text-xs font-semibold">Accept</Text>
+                        <Text className="text-on-accent text-xs font-semibold">Accept</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        className="border border-gray-300 px-3 py-1.5 rounded-full"
+                        className="border border-border px-3 py-1.5 rounded-full"
                         disabled={busyId === item.id}
                         onPress={() => handleDeclineOrCancel(item, 'requests')}
                       >
-                        <Text className="text-gray-600 text-xs font-semibold">Decline</Text>
+                        <Text className="text-foreground-secondary text-xs font-semibold">Decline</Text>
                       </TouchableOpacity>
                     </View>
                   ) : section === 'sent' ? (
                     <TouchableOpacity
-                      className="border border-gray-300 px-3 py-1.5 rounded-full"
+                      className="border border-border px-3 py-1.5 rounded-full"
                       disabled={busyId === item.id}
                       onPress={() => handleDeclineOrCancel(item, 'sent')}
                     >
-                      <Text className="text-gray-600 text-xs font-semibold">Cancel</Text>
+                      <Text className="text-foreground-secondary text-xs font-semibold">Cancel</Text>
                     </TouchableOpacity>
                   ) : (
                     <View className="flex-row gap-2">
                       <TouchableOpacity
-                        className="bg-brand-primary px-3 py-1.5 rounded-full"
+                        className="bg-accent px-3 py-1.5 rounded-full"
                         disabled={busyId === item.id}
                         onPress={() => goToThread(item)}
                       >
-                        <Text className="text-white text-xs font-semibold">Message</Text>
+                        <Text className="text-on-accent text-xs font-semibold">Message</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        className="border border-red-200 px-3 py-1.5 rounded-full"
+                        className="border border-danger-line px-3 py-1.5 rounded-full"
                         disabled={busyId === item.id}
                         onPress={() => handleRemove(item)}
                       >
-                        <Text className="text-red-600 text-xs font-semibold">Remove</Text>
+                        <Text className="text-danger text-xs font-semibold">Remove</Text>
                       </TouchableOpacity>
                     </View>
                   )
@@ -246,8 +248,9 @@ function ConnectionRow({
   actions: React.ReactNode;
 }) {
   const { otherProfile } = item;
+  const { colors } = useTheme();
   return (
-    <View className="flex-row items-center justify-between py-3 border-b border-gray-100">
+    <View className="flex-row items-center justify-between py-3 border-b border-border-subtle">
       <TouchableOpacity className="flex-row items-center flex-1 mr-3" onPress={onPress}>
         <Avatar
           uri={otherProfile.avatar_url}
@@ -256,13 +259,13 @@ function ConnectionRow({
           className="mr-3"
         />
         <View className="flex-1">
-          <Text className="text-base font-semibold text-gray-900" numberOfLines={1}>
+          <Text className="text-base font-semibold text-foreground" numberOfLines={1}>
             {otherProfile.display_name ?? otherProfile.username}
           </Text>
-          <Text className="text-xs text-gray-400">@{otherProfile.username}</Text>
+          <Text className="text-xs text-foreground-muted">@{otherProfile.username}</Text>
         </View>
       </TouchableOpacity>
-      {busy ? <ActivityIndicator size="small" color="#6C47FF" /> : actions}
+      {busy ? <ActivityIndicator size="small" color={colors.accent} /> : actions}
     </View>
   );
 }

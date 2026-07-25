@@ -27,8 +27,10 @@ import ProfileBody, { HighlightThumb } from '../../components/ProfileBody';
 import AudioPlayer from '../../components/AudioPlayer';
 import CityPicker, { type CityPickerValue } from '../../components/CityPicker';
 import ChipToggleGroup, { toggleInSet } from '../../components/ChipToggleGroup';
+import { useTheme } from '../../theme/ThemeProvider';
 
 export default function MyProfileScreen() {
+  const { colors } = useTheme();
   const [profile, setProfile] = useState<FullProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -64,15 +66,15 @@ export default function MyProfileScreen() {
 
   if (loading) {
     return (
-      <View className="flex-1 bg-white items-center justify-center">
-        <ActivityIndicator size="large" color="#6C47FF" />
+      <View className="flex-1 bg-background items-center justify-center">
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
   if (error || !profile) {
     return (
-      <View className="flex-1 bg-white items-center justify-center px-6">
-        <Text className="text-red-600 text-center">{error ?? 'Could not load profile.'}</Text>
+      <View className="flex-1 bg-background items-center justify-center px-6">
+        <Text className="text-danger text-center">{error ?? 'Could not load profile.'}</Text>
       </View>
     );
   }
@@ -101,15 +103,15 @@ export default function MyProfileScreen() {
     <View className="flex-1">
       <View className="absolute top-12 left-4 z-10">
         <TouchableOpacity onPress={handleSignOut}>
-          <Text className="text-gray-400 text-sm font-medium">Sign out</Text>
+          <Text className="text-foreground-muted text-sm font-medium">Sign out</Text>
         </TouchableOpacity>
       </View>
       <View className="absolute top-12 right-4 z-10">
         <TouchableOpacity
-          className="bg-brand-primary px-4 py-2 rounded-full"
+          className="bg-accent px-4 py-2 rounded-full"
           onPress={() => setEditing(true)}
         >
-          <Text className="text-white font-semibold text-sm">Edit</Text>
+          <Text className="text-on-accent font-semibold text-sm">Edit</Text>
         </TouchableOpacity>
       </View>
       <ProfileBody profile={profile} onManageHighlights={() => setManagingHighlights(true)} />
@@ -126,6 +128,7 @@ function EditProfileForm({
   onSaved: () => void;
   onCancel: () => void;
 }) {
+  const { colors } = useTheme();
   const [displayName, setDisplayName] = useState(profile.display_name ?? '');
   const [bio, setBio] = useState(profile.bio ?? '');
   const [location, setLocation] = useState<CityPickerValue>({
@@ -293,75 +296,75 @@ function EditProfileForm({
   }
 
   return (
-    <View className="flex-1 bg-white">
+    <View className="flex-1 bg-background">
       <ScrollView contentContainerClassName="px-6 py-10 pb-32">
         <View className="flex-row items-center justify-between mb-6">
-          <Text className="text-2xl font-bold text-gray-900">Edit profile</Text>
+          <Text className="text-2xl font-bold text-foreground">Edit profile</Text>
           <TouchableOpacity onPress={onCancel}>
-            <Text className="text-gray-500">Cancel</Text>
+            <Text className="text-foreground-tertiary">Cancel</Text>
           </TouchableOpacity>
         </View>
 
         {error && (
-          <View className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-4">
-            <Text className="text-red-700 text-sm">{error}</Text>
+          <View className="bg-danger-subtle border border-danger-line rounded-lg px-4 py-3 mb-4">
+            <Text className="text-danger text-sm">{error}</Text>
           </View>
         )}
 
-        <Text className="text-sm font-medium text-gray-700 mb-1">Display name</Text>
-        <TextInput className="border border-gray-300 rounded-lg px-4 py-3 mb-4 text-base text-gray-900" value={displayName} onChangeText={setDisplayName} placeholder="Your name" placeholderTextColor="#9CA3AF" />
+        <Text className="text-sm font-medium text-foreground-secondary mb-1">Display name</Text>
+        <TextInput className="border border-border rounded-lg px-4 py-3 mb-4 text-base text-foreground" value={displayName} onChangeText={setDisplayName} placeholder="Your name" placeholderTextColor={colors.foregroundMuted} />
 
         <CityPicker value={location} onChange={setLocation} />
 
-        <Text className="text-sm font-medium text-gray-700 mb-1">Bio</Text>
-        <TextInput className="border border-gray-300 rounded-lg px-4 py-3 mb-6 text-base text-gray-900" value={bio} onChangeText={setBio} placeholder="About you..." placeholderTextColor="#9CA3AF" multiline numberOfLines={4} textAlignVertical="top" style={{ minHeight: 96 }} />
+        <Text className="text-sm font-medium text-foreground-secondary mb-1">Bio</Text>
+        <TextInput className="border border-border rounded-lg px-4 py-3 mb-6 text-base text-foreground" value={bio} onChangeText={setBio} placeholder="About you..." placeholderTextColor={colors.foregroundMuted} multiline numberOfLines={4} textAlignVertical="top" style={{ minHeight: 96 }} />
 
         {/* Intro media */}
-        <Text className="text-sm font-semibold text-gray-700 mb-3">Intro media</Text>
+        <Text className="text-sm font-semibold text-foreground-secondary mb-3">Intro media</Text>
         {profile.intro_media_url && !newMedia && (
           <View className="mb-3">
-            <Text className="text-xs text-gray-500 mb-1">Current:</Text>
+            <Text className="text-xs text-foreground-tertiary mb-1">Current:</Text>
             {profile.intro_media_type === 'image' && (
               <Image source={{ uri: profile.intro_media_url }} className="w-full h-40 rounded-xl" resizeMode="cover" />
             )}
             {profile.intro_media_type === 'audio' && <AudioPlayer uri={profile.intro_media_url} />}
             {profile.intro_media_type === 'video' && (
-              <View className="bg-gray-100 rounded-xl p-3"><Text className="text-gray-600">🎬 Current video</Text></View>
+              <View className="bg-surface-alt rounded-xl p-3"><Text className="text-foreground-secondary">🎬 Current video</Text></View>
             )}
           </View>
         )}
         {newMedia && (
-          <View className="bg-gray-100 rounded-xl p-3 mb-3 flex-row items-center justify-between">
-            <Text className="text-gray-600">New {newMedia.type} selected</Text>
+          <View className="bg-surface-alt rounded-xl p-3 mb-3 flex-row items-center justify-between">
+            <Text className="text-foreground-secondary">New {newMedia.type} selected</Text>
             <TouchableOpacity onPress={() => setNewMedia(null)}>
-              <Text className="text-brand-secondary text-sm">Remove</Text>
+              <Text className="text-accent text-sm">Remove</Text>
             </TouchableOpacity>
           </View>
         )}
         <View className="flex-row gap-3 mb-8">
-          <TouchableOpacity className="flex-1 border border-gray-300 rounded-lg py-3 items-center" onPress={handlePickPhoto}>
-            <Text className="text-xl mb-0.5">📷</Text><Text className="text-xs text-gray-600">Photo</Text>
+          <TouchableOpacity className="flex-1 border border-border rounded-lg py-3 items-center" onPress={handlePickPhoto}>
+            <Text className="text-xl mb-0.5">📷</Text><Text className="text-xs text-foreground-secondary">Photo</Text>
           </TouchableOpacity>
-          <TouchableOpacity className="flex-1 border border-gray-300 rounded-lg py-3 items-center" onPress={handlePickVideo}>
-            <Text className="text-xl mb-0.5">🎬</Text><Text className="text-xs text-gray-600">Video</Text>
+          <TouchableOpacity className="flex-1 border border-border rounded-lg py-3 items-center" onPress={handlePickVideo}>
+            <Text className="text-xl mb-0.5">🎬</Text><Text className="text-xs text-foreground-secondary">Video</Text>
           </TouchableOpacity>
-          <TouchableOpacity className={`flex-1 border rounded-lg py-3 items-center ${isRecording ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} onPress={isRecording ? handleStopRecording : handleStartRecording}>
+          <TouchableOpacity className={`flex-1 border rounded-lg py-3 items-center ${isRecording ? 'border-danger-line bg-danger-subtle' : 'border-border'}`} onPress={isRecording ? handleStopRecording : handleStartRecording}>
             <Text className="text-xl mb-0.5">{isRecording ? '⏹' : '🎙'}</Text>
-            <Text className={`text-xs ${isRecording ? 'text-red-600' : 'text-gray-600'}`}>{isRecording ? 'Stop' : 'Record'}</Text>
+            <Text className={`text-xs ${isRecording ? 'text-danger' : 'text-foreground-secondary'}`}>{isRecording ? 'Stop' : 'Record'}</Text>
           </TouchableOpacity>
         </View>
 
         {/* Instruments */}
-        <Text className="text-sm font-semibold text-gray-700 mb-3">Instruments</Text>
+        <Text className="text-sm font-semibold text-foreground-secondary mb-3">Instruments</Text>
         {allInstruments.map((inst) => {
           const isSel = inst.id in selectedInstruments;
           return (
             <View key={inst.id} className="mb-2">
               <TouchableOpacity
-                className={`border rounded-lg px-4 py-2.5 flex-row items-center justify-between ${isSel ? 'border-brand-primary bg-purple-50' : 'border-gray-200'}`}
+                className={`border rounded-lg px-4 py-2.5 flex-row items-center justify-between ${isSel ? 'border-accent bg-accent-subtle' : 'border-border-subtle'}`}
                 onPress={() => toggleInstrument(inst.id)}
               >
-                <Text className={`font-medium ${isSel ? 'text-brand-primary' : 'text-gray-700'}`}>{inst.name}</Text>
+                <Text className={`font-medium ${isSel ? 'text-accent' : 'text-foreground-secondary'}`}>{inst.name}</Text>
                 <Text>{isSel ? '✓' : '+'}</Text>
               </TouchableOpacity>
               {isSel && (
@@ -369,10 +372,10 @@ function EditProfileForm({
                   {SKILL_LEVELS.map((sl) => (
                     <TouchableOpacity
                       key={sl.value}
-                      className={`flex-1 py-1 rounded-full border items-center ${selectedInstruments[inst.id] === sl.value ? 'bg-brand-primary border-brand-primary' : 'border-gray-300'}`}
+                      className={`flex-1 py-1 rounded-full border items-center ${selectedInstruments[inst.id] === sl.value ? 'bg-accent border-accent' : 'border-border'}`}
                       onPress={() => setSelectedInstruments((p) => ({ ...p, [inst.id]: sl.value }))}
                     >
-                      <Text className={`text-xs font-medium ${selectedInstruments[inst.id] === sl.value ? 'text-white' : 'text-gray-600'}`}>{sl.label}</Text>
+                      <Text className={`text-xs font-medium ${selectedInstruments[inst.id] === sl.value ? 'text-on-accent' : 'text-foreground-secondary'}`}>{sl.label}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -382,7 +385,7 @@ function EditProfileForm({
         })}
 
         {/* Genres */}
-        <Text className="text-sm font-semibold text-gray-700 mt-4 mb-3">Genres</Text>
+        <Text className="text-sm font-semibold text-foreground-secondary mt-4 mb-3">Genres</Text>
         <ChipToggleGroup
           items={allGenres}
           getKey={(genre) => genre.id}
@@ -392,7 +395,7 @@ function EditProfileForm({
         />
 
         {/* Availability */}
-        <Text className="text-sm font-semibold text-gray-700 mt-4 mb-3">Availability</Text>
+        <Text className="text-sm font-semibold text-foreground-secondary mt-4 mb-3">Availability</Text>
         <ChipToggleGroup
           items={AVAILABILITY_STATUSES}
           getKey={(opt) => opt.value}
@@ -402,9 +405,9 @@ function EditProfileForm({
         />
       </ScrollView>
 
-      <View className="absolute bottom-0 left-0 right-0 px-6 py-4 bg-white border-t border-gray-100">
-        <TouchableOpacity className="bg-brand-primary rounded-lg py-4 items-center" onPress={handleSave} disabled={saving}>
-          {saving ? <ActivityIndicator color="#fff" /> : <Text className="text-white font-semibold text-base">Save changes</Text>}
+      <View className="absolute bottom-0 left-0 right-0 px-6 py-4 bg-surface border-t border-border-subtle">
+        <TouchableOpacity className="bg-accent rounded-lg py-4 items-center" onPress={handleSave} disabled={saving}>
+          {saving ? <ActivityIndicator color={colors.onAccent} /> : <Text className="text-on-accent font-semibold text-base">Save changes</Text>}
         </TouchableOpacity>
       </View>
     </View>
@@ -428,6 +431,7 @@ function ManageHighlightsPanel({
   onSaved: () => void;
   onCancel: () => void;
 }) {
+  const { colors } = useTheme();
   const [posts, setPosts] = useState<MediaPost[]>([]);
   const [postsLoading, setPostsLoading] = useState(true);
   const [selected, setSelected] = useState<string[]>(
@@ -486,53 +490,53 @@ function ManageHighlightsPanel({
   const selectedPosts = selected.map((id) => postById.get(id)).filter((p): p is MediaPost => !!p);
 
   return (
-    <View className="flex-1 bg-white">
+    <View className="flex-1 bg-background">
       <ScrollView contentContainerClassName="px-6 py-10 pb-32">
         <View className="flex-row items-center justify-between mb-6">
-          <Text className="text-2xl font-bold text-gray-900">Manage highlights</Text>
+          <Text className="text-2xl font-bold text-foreground">Manage highlights</Text>
           <TouchableOpacity onPress={onCancel}>
-            <Text className="text-gray-500">Cancel</Text>
+            <Text className="text-foreground-tertiary">Cancel</Text>
           </TouchableOpacity>
         </View>
 
         {error && (
-          <View className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-4">
-            <Text className="text-red-700 text-sm">{error}</Text>
+          <View className="bg-danger-subtle border border-danger-line rounded-lg px-4 py-3 mb-4">
+            <Text className="text-danger text-sm">{error}</Text>
           </View>
         )}
 
-        <Text className="text-sm font-semibold text-gray-700 mb-3">Selected ({selected.length}/6)</Text>
+        <Text className="text-sm font-semibold text-foreground-secondary mb-3">Selected ({selected.length}/6)</Text>
         {selectedPosts.length === 0 ? (
-          <Text className="text-sm text-gray-400 mb-6">Tap posts below to pin them here.</Text>
+          <Text className="text-sm text-foreground-muted mb-6">Tap posts below to pin them here.</Text>
         ) : (
           <View className="mb-6">
             {selectedPosts.map((post, idx) => (
               <View key={post.id} className="flex-row items-center gap-3 mb-2">
-                <View className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100">
+                <View className="w-14 h-14 rounded-lg overflow-hidden bg-surface-alt">
                   <HighlightThumb post={post} />
                 </View>
-                <Text className="flex-1 text-sm text-gray-700" numberOfLines={1}>
+                <Text className="flex-1 text-sm text-foreground-secondary" numberOfLines={1}>
                   {post.caption || post.media_type}
                 </Text>
                 <TouchableOpacity disabled={idx === 0} onPress={() => move(post.id, -1)}>
-                  <Text className={idx === 0 ? 'text-gray-200' : 'text-gray-500 text-base'}>↑</Text>
+                  <Text className={idx === 0 ? 'text-foreground-muted' : 'text-foreground-tertiary text-base'}>↑</Text>
                 </TouchableOpacity>
                 <TouchableOpacity disabled={idx === selectedPosts.length - 1} onPress={() => move(post.id, 1)}>
-                  <Text className={idx === selectedPosts.length - 1 ? 'text-gray-200' : 'text-gray-500 text-base'}>↓</Text>
+                  <Text className={idx === selectedPosts.length - 1 ? 'text-foreground-muted' : 'text-foreground-tertiary text-base'}>↓</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => toggle(post.id)}>
-                  <Text className="text-red-500 text-sm font-medium">Remove</Text>
+                  <Text className="text-danger text-sm font-medium">Remove</Text>
                 </TouchableOpacity>
               </View>
             ))}
           </View>
         )}
 
-        <Text className="text-sm font-semibold text-gray-700 mb-3">Your posts</Text>
+        <Text className="text-sm font-semibold text-foreground-secondary mb-3">Your posts</Text>
         {postsLoading ? (
-          <ActivityIndicator color="#6C47FF" />
+          <ActivityIndicator color={colors.accent} />
         ) : posts.length === 0 ? (
-          <Text className="text-sm text-gray-400">No posts yet — create one from the Feed tab first.</Text>
+          <Text className="text-sm text-foreground-muted">No posts yet — create one from the Feed tab first.</Text>
         ) : (
           <View className="flex-row flex-wrap gap-3">
             {posts.map((post) => {
@@ -544,7 +548,7 @@ function ManageHighlightsPanel({
                   disabled={disabledByCap}
                   onPress={() => toggle(post.id)}
                   className={`w-20 h-20 rounded-lg overflow-hidden ${
-                    isSelected ? 'border-2 border-brand-primary' : 'border border-gray-200'
+                    isSelected ? 'border-2 border-accent' : 'border border-border-subtle'
                   } ${disabledByCap ? 'opacity-40' : ''}`}
                 >
                   <HighlightThumb post={post} />
@@ -555,9 +559,9 @@ function ManageHighlightsPanel({
         )}
       </ScrollView>
 
-      <View className="absolute bottom-0 left-0 right-0 px-6 py-4 bg-white border-t border-gray-100">
-        <TouchableOpacity className="bg-brand-primary rounded-lg py-4 items-center" onPress={handleSave} disabled={saving}>
-          {saving ? <ActivityIndicator color="#fff" /> : <Text className="text-white font-semibold text-base">Save highlights</Text>}
+      <View className="absolute bottom-0 left-0 right-0 px-6 py-4 bg-surface border-t border-border-subtle">
+        <TouchableOpacity className="bg-accent rounded-lg py-4 items-center" onPress={handleSave} disabled={saving}>
+          {saving ? <ActivityIndicator color={colors.onAccent} /> : <Text className="text-on-accent font-semibold text-base">Save highlights</Text>}
         </TouchableOpacity>
       </View>
     </View>

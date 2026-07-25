@@ -18,6 +18,7 @@ import type { PostDetailRow } from '../lib/types';
 import AudioPlayer from '../components/AudioPlayer';
 import Avatar from '../components/Avatar';
 import VideoPlayerBlock from '../components/VideoPlayerBlock';
+import { useTheme } from '../theme/ThemeProvider';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'PostDetail'>;
 
@@ -29,6 +30,7 @@ const POST_DETAIL_SELECT = `
 `;
 
 export default function PostDetailScreen({ route, navigation }: Props) {
+  const { colors } = useTheme();
   const { postId } = route.params;
   const { session } = useAppContext();
   const currentUserId = session?.user.id;
@@ -101,16 +103,16 @@ export default function PostDetailScreen({ route, navigation }: Props) {
 
   if (loading) {
     return (
-      <View className="flex-1 bg-white items-center justify-center">
-        <ActivityIndicator size="large" color="#6C47FF" />
+      <View className="flex-1 bg-background items-center justify-center">
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
 
   if (error || !post) {
     return (
-      <View className="flex-1 bg-white items-center justify-center px-6">
-        <Text className="text-red-600 text-center">{error ?? 'Post not found.'}</Text>
+      <View className="flex-1 bg-background items-center justify-center px-6">
+        <Text className="text-danger text-center">{error ?? 'Post not found.'}</Text>
       </View>
     );
   }
@@ -120,7 +122,7 @@ export default function PostDetailScreen({ route, navigation }: Props) {
 
   return (
     <KeyboardAvoidingView
-      className="flex-1 bg-white"
+      className="flex-1 bg-background"
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerClassName="pb-6">
@@ -131,17 +133,17 @@ export default function PostDetailScreen({ route, navigation }: Props) {
         >
           <Avatar uri={author.avatar_url} name={author.display_name ?? author.username} className="mr-3" />
           <View>
-            <Text className="text-sm font-semibold text-gray-900">
+            <Text className="text-sm font-semibold text-foreground">
               {author.display_name ?? author.username}
             </Text>
-            <Text className="text-xs text-gray-400">
+            <Text className="text-xs text-foreground-muted">
               {new Date(post.created_at).toLocaleDateString()}
             </Text>
           </View>
         </TouchableOpacity>
 
         {post.media_type === 'image' && (
-          <Image source={{ uri: post.media_url }} className="w-full h-80 bg-gray-100" resizeMode="cover" />
+          <Image source={{ uri: post.media_url }} className="w-full h-80 bg-surface-alt" resizeMode="cover" />
         )}
         {post.media_type === 'video' && <VideoPlayerBlock uri={post.media_url} />}
         {post.media_type === 'audio' && (
@@ -151,32 +153,32 @@ export default function PostDetailScreen({ route, navigation }: Props) {
         )}
 
         <View className="px-4">
-          {post.caption && <Text className="text-base text-gray-800 mt-4">{post.caption}</Text>}
+          {post.caption && <Text className="text-base text-foreground mt-4">{post.caption}</Text>}
 
           {post.tags && post.tags.length > 0 && (
             <View className="flex-row flex-wrap gap-1.5 mt-3">
               {post.tags.map((tag) => (
-                <View key={tag} className="px-2.5 py-1 rounded-full bg-purple-50 border border-purple-200">
-                  <Text className="text-brand-primary text-xs font-medium">#{tag}</Text>
+                <View key={tag} className="px-2.5 py-1 rounded-full bg-accent-subtle border border-accent-line">
+                  <Text className="text-accent text-xs font-medium">#{tag}</Text>
                 </View>
               ))}
             </View>
           )}
 
-          <View className="flex-row items-center mt-4 gap-5 pb-4 border-b border-gray-100">
+          <View className="flex-row items-center mt-4 gap-5 pb-4 border-b border-border-subtle">
             <TouchableOpacity onPress={handleToggleLike} className="flex-row items-center gap-1.5">
               <Text className="text-lg">{likedByMe ? '❤️' : '🤍'}</Text>
-              <Text className="text-sm text-gray-500">{post.likes.length}</Text>
+              <Text className="text-sm text-foreground-tertiary">{post.likes.length}</Text>
             </TouchableOpacity>
             <View className="flex-row items-center gap-1.5">
               <Text className="text-lg">💬</Text>
-              <Text className="text-sm text-gray-500">{post.comments.length}</Text>
+              <Text className="text-sm text-foreground-tertiary">{post.comments.length}</Text>
             </View>
           </View>
 
-          <Text className="text-sm font-semibold text-gray-700 mt-4 mb-2">Comments</Text>
+          <Text className="text-sm font-semibold text-foreground-secondary mt-4 mb-2">Comments</Text>
           {post.comments.length === 0 && (
-            <Text className="text-sm text-gray-400 mb-2">No comments yet — say something.</Text>
+            <Text className="text-sm text-foreground-muted mb-2">No comments yet — say something.</Text>
           )}
           {post.comments.map((c) => {
             const commentAuthor = c.profiles;
@@ -189,12 +191,12 @@ export default function PostDetailScreen({ route, navigation }: Props) {
                   className="mr-2.5 mt-0.5"
                 />
                 <View className="flex-1">
-                  <Text className="text-sm text-gray-900">
+                  <Text className="text-sm text-foreground">
                     <Text className="font-semibold">{commentAuthor.display_name ?? commentAuthor.username}</Text>
                     {'  '}
                     {c.body}
                   </Text>
-                  <Text className="text-xs text-gray-400 mt-0.5">
+                  <Text className="text-xs text-foreground-muted mt-0.5">
                     {new Date(c.created_at).toLocaleDateString()}
                   </Text>
                 </View>
@@ -204,23 +206,23 @@ export default function PostDetailScreen({ route, navigation }: Props) {
         </View>
       </ScrollView>
 
-      <View className="flex-row items-center gap-2 px-4 py-3 border-t border-gray-100 bg-white">
+      <View className="flex-row items-center gap-2 px-4 py-3 border-t border-border-subtle bg-surface">
         <TextInput
-          className="flex-1 border border-gray-300 rounded-full px-4 py-2.5 text-base text-gray-900"
+          className="flex-1 border border-border rounded-full px-4 py-2.5 text-base text-foreground"
           placeholder="Add a comment..."
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.foregroundMuted}
           value={commentBody}
           onChangeText={setCommentBody}
         />
         <TouchableOpacity
-          className="bg-brand-primary rounded-full px-4 py-2.5 items-center justify-center"
+          className="bg-accent rounded-full px-4 py-2.5 items-center justify-center"
           onPress={handleAddComment}
           disabled={postingComment || !commentBody.trim()}
         >
           {postingComment ? (
-            <ActivityIndicator color="#fff" size="small" />
+            <ActivityIndicator color={colors.onAccent} size="small" />
           ) : (
-            <Text className="text-white font-semibold text-sm">Send</Text>
+            <Text className="text-on-accent font-semibold text-sm">Send</Text>
           )}
         </TouchableOpacity>
       </View>

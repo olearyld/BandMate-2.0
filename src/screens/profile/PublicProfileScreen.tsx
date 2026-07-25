@@ -7,10 +7,12 @@ import { PROFILE_HIGHLIGHTS_SELECT, type FullProfile, type ConnectionStatusInfo 
 import type { MainStackParamList } from '../../navigation/types';
 import ProfileBody from '../../components/ProfileBody';
 import { acceptRequest, cancelOrDeclineOrRemove, getConnectionStatus, sendRequest } from '../../lib/connections';
+import { useTheme } from '../../theme/ThemeProvider';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'PublicProfile'>;
 
 export default function PublicProfileScreen({ route }: Props) {
+  const { colors } = useTheme();
   const { profileId } = route.params;
   const { session } = useAppContext();
   const viewerId = session?.user.id;
@@ -69,16 +71,16 @@ export default function PublicProfileScreen({ route }: Props) {
 
   if (profileLoading) {
     return (
-      <View className="flex-1 bg-white items-center justify-center">
-        <ActivityIndicator size="large" color="#6C47FF" />
+      <View className="flex-1 bg-background items-center justify-center">
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
 
   if (profileError || !profile) {
     return (
-      <View className="flex-1 bg-white items-center justify-center px-6">
-        <Text className="text-red-600 text-center">{profileError ?? 'Profile not found.'}</Text>
+      <View className="flex-1 bg-background items-center justify-center px-6">
+        <Text className="text-danger text-center">{profileError ?? 'Profile not found.'}</Text>
       </View>
     );
   }
@@ -117,6 +119,7 @@ function ConnectAction({
   error: string | null;
   onRefresh: () => Promise<void>;
 }) {
+  const { colors } = useTheme();
   const [busy, setBusy] = useState(false);
 
   async function runAction(action: () => Promise<void>, failureTitle: string) {
@@ -153,22 +156,22 @@ function ConnectAction({
     ]);
   }
 
-  if (loading) return <ActivityIndicator size="small" color="#6C47FF" />;
-  if (error) return <Text className="text-red-600 text-xs">{error}</Text>;
+  if (loading) return <ActivityIndicator size="small" color={colors.accent} />;
+  if (error) return <Text className="text-danger text-xs">{error}</Text>;
   if (!status) return null;
 
   if (busy) {
     return (
-      <View className="px-6 py-2.5 rounded-full bg-gray-100 items-center self-start">
-        <ActivityIndicator size="small" color="#6C47FF" />
+      <View className="px-6 py-2.5 rounded-full bg-surface-alt items-center self-start">
+        <ActivityIndicator size="small" color={colors.accent} />
       </View>
     );
   }
 
   if (status.status === 'none') {
     return (
-      <TouchableOpacity className="bg-brand-primary px-6 py-2.5 rounded-full self-center" onPress={handleConnect}>
-        <Text className="text-white font-semibold text-sm">Connect</Text>
+      <TouchableOpacity className="bg-accent px-6 py-2.5 rounded-full self-center" onPress={handleConnect}>
+        <Text className="text-on-accent font-semibold text-sm">Connect</Text>
       </TouchableOpacity>
     );
   }
@@ -176,10 +179,10 @@ function ConnectAction({
   if (status.status === 'pending_sent') {
     return (
       <TouchableOpacity
-        className="bg-gray-100 px-6 py-2.5 rounded-full self-center"
+        className="bg-surface-alt px-6 py-2.5 rounded-full self-center"
         onPress={handleCancelOrDecline}
       >
-        <Text className="text-gray-500 font-semibold text-sm">Request Sent · Tap to cancel</Text>
+        <Text className="text-foreground-tertiary font-semibold text-sm">Request Sent · Tap to cancel</Text>
       </TouchableOpacity>
     );
   }
@@ -187,14 +190,14 @@ function ConnectAction({
   if (status.status === 'pending_received') {
     return (
       <View className="flex-row gap-2 self-center">
-        <TouchableOpacity className="bg-brand-primary px-5 py-2.5 rounded-full" onPress={handleAccept}>
-          <Text className="text-white font-semibold text-sm">Accept</Text>
+        <TouchableOpacity className="bg-accent px-5 py-2.5 rounded-full" onPress={handleAccept}>
+          <Text className="text-on-accent font-semibold text-sm">Accept</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          className="border border-gray-300 px-5 py-2.5 rounded-full"
+          className="border border-border px-5 py-2.5 rounded-full"
           onPress={handleCancelOrDecline}
         >
-          <Text className="text-gray-600 font-semibold text-sm">Decline</Text>
+          <Text className="text-foreground-secondary font-semibold text-sm">Decline</Text>
         </TouchableOpacity>
       </View>
     );
@@ -203,10 +206,10 @@ function ConnectAction({
   // accepted
   return (
     <TouchableOpacity
-      className="border border-green-300 bg-green-50 px-6 py-2.5 rounded-full self-center"
+      className="border border-success-line bg-success-subtle px-6 py-2.5 rounded-full self-center"
       onPress={handleRemove}
     >
-      <Text className="text-green-700 font-semibold text-sm">✓ Connected · Remove</Text>
+      <Text className="text-success font-semibold text-sm">✓ Connected · Remove</Text>
     </TouchableOpacity>
   );
 }

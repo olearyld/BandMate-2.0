@@ -23,8 +23,8 @@ export default function Avatar({
     return <Image source={{ uri }} className={`${box} rounded-full ${className}`} />;
   }
   return (
-    <View className={`${box} rounded-full bg-brand-primary items-center justify-center ${className}`}>
-      <Text className={`text-white font-bold ${text}`}>{name[0]?.toUpperCase() ?? '?'}</Text>
+    <View className={`${box} rounded-full bg-accent items-center justify-center ${className}`}>
+      <Text className={`text-on-accent font-bold ${text}`}>{name[0]?.toUpperCase() ?? '?'}</Text>
     </View>
   );
 }

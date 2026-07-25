@@ -39,10 +39,10 @@ export default function ChipToggleGroup<T>({
         return (
           <TouchableOpacity
             key={getKey(item)}
-            className={`px-4 py-2 rounded-full border ${isSel ? 'bg-brand-primary border-brand-primary' : 'border-gray-300'}`}
+            className={`px-4 py-2 rounded-full border ${isSel ? 'bg-accent border-accent' : 'border-border'}`}
             onPress={() => onToggle(item)}
           >
-            <Text className={`text-sm font-medium ${isSel ? 'text-white' : 'text-gray-700'}`}>
+            <Text className={`text-sm font-medium ${isSel ? 'text-on-accent' : 'text-foreground-secondary'}`}>
               {getLabel(item)}
             </Text>
           </TouchableOpacity>

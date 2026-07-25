@@ -19,6 +19,7 @@ import type { FeedPostRow, StoryGroup } from '../lib/types';
 import AudioPlayer from '../components/AudioPlayer';
 import Avatar from '../components/Avatar';
 import StoriesTray from '../components/StoriesTray';
+import { useTheme } from '../theme/ThemeProvider';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Feed'>,
@@ -37,6 +38,7 @@ const FEED_SELECT = `
 export default function FeedScreen({ navigation }: Props) {
   const { session } = useAppContext();
   const currentUserId = session?.user.id;
+  const { colors, elevation } = useTheme();
 
   const [posts, setPosts] = useState<FeedPostRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -173,14 +175,14 @@ export default function FeedScreen({ navigation }: Props) {
   );
 
   return (
-    <View className="flex-1 bg-white">
+    <View className="flex-1 bg-background">
       {loading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#6C47FF" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       ) : error ? (
         <View className="flex-1 items-center justify-center px-6">
-          <Text className="text-red-600 text-center">{error}</Text>
+          <Text className="text-danger text-center">{error}</Text>
         </View>
       ) : (
         <FlatList
@@ -188,7 +190,7 @@ export default function FeedScreen({ navigation }: Props) {
           data={posts}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingVertical: 12 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#6C47FF" />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} />}
           onEndReachedThreshold={0.5}
           onEndReached={handleLoadMore}
           ListHeaderComponent={
@@ -201,8 +203,8 @@ export default function FeedScreen({ navigation }: Props) {
           }
           ListEmptyComponent={
             <View className="items-center justify-center px-6 py-24">
-              <Text className="text-2xl font-bold text-gray-900 mb-2">Feed</Text>
-              <Text className="text-base text-gray-500 text-center">
+              <Text className="text-2xl font-bold text-foreground mb-2">Feed</Text>
+              <Text className="text-base text-foreground-tertiary text-center">
                 No posts yet — be the first to share something.
               </Text>
             </View>
@@ -210,7 +212,7 @@ export default function FeedScreen({ navigation }: Props) {
           ListFooterComponent={
             loadingMore ? (
               <View className="py-6">
-                <ActivityIndicator color="#6C47FF" />
+                <ActivityIndicator color={colors.accent} />
               </View>
             ) : null
           }
@@ -227,11 +229,11 @@ export default function FeedScreen({ navigation }: Props) {
       )}
 
       <TouchableOpacity
-        className="absolute bottom-6 right-6 w-14 h-14 rounded-full bg-brand-primary items-center justify-center"
-        style={{ shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4 }}
+        className="absolute bottom-6 right-6 w-14 h-14 rounded-full bg-accent items-center justify-center"
+        style={{ shadowColor: '#000', ...elevation.md }}
         onPress={() => navigation.navigate('CreatePost')}
       >
-        <Text className="text-white text-3xl leading-none" style={{ marginTop: -2 }}>+</Text>
+        <Text className="text-on-accent text-3xl leading-none" style={{ marginTop: -2 }}>+</Text>
       </TouchableOpacity>
     </View>
   );
@@ -271,10 +273,10 @@ const FeedCard = memo(function FeedCard({
       >
         <Avatar uri={author.avatar_url} name={author.display_name ?? author.username} className="mr-3" />
         <View>
-          <Text className="text-sm font-semibold text-gray-900">
+          <Text className="text-sm font-semibold text-foreground">
             {author.display_name ?? author.username}
           </Text>
-          <Text className="text-xs text-gray-400">
+          <Text className="text-xs text-foreground-muted">
             {new Date(post.created_at).toLocaleDateString()}
           </Text>
         </View>
@@ -282,13 +284,13 @@ const FeedCard = memo(function FeedCard({
 
       <FeedMedia post={post} />
 
-      {post.caption && <Text className="text-base text-gray-800 mt-3">{post.caption}</Text>}
+      {post.caption && <Text className="text-base text-foreground mt-3">{post.caption}</Text>}
 
       {post.tags && post.tags.length > 0 && (
         <View className="flex-row flex-wrap gap-1.5 mt-2">
           {post.tags.map((tag) => (
-            <View key={tag} className="px-2.5 py-1 rounded-full bg-purple-50 border border-purple-200">
-              <Text className="text-brand-primary text-xs font-medium">#{tag}</Text>
+            <View key={tag} className="px-2.5 py-1 rounded-full bg-accent-subtle border border-accent-line">
+              <Text className="text-accent text-xs font-medium">#{tag}</Text>
             </View>
           ))}
         </View>
@@ -297,11 +299,11 @@ const FeedCard = memo(function FeedCard({
       <View className="flex-row items-center mt-3 gap-5">
         <TouchableOpacity onPress={() => onToggleLike(post)} className="flex-row items-center gap-1.5">
           <Text className="text-lg">{likedByMe ? '❤️' : '🤍'}</Text>
-          <Text className="text-sm text-gray-500">{likeCount}</Text>
+          <Text className="text-sm text-foreground-tertiary">{likeCount}</Text>
         </TouchableOpacity>
         <View className="flex-row items-center gap-1.5">
           <Text className="text-lg">💬</Text>
-          <Text className="text-sm text-gray-500">{commentCount}</Text>
+          <Text className="text-sm text-foreground-tertiary">{commentCount}</Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -313,7 +315,7 @@ function FeedMedia({ post }: { post: FeedPostRow }) {
     return (
       <Image
         source={{ uri: post.media_url }}
-        className="w-full h-72 rounded-xl bg-gray-100"
+        className="w-full h-72 rounded-xl bg-surface-alt"
         resizeMode="cover"
       />
     );

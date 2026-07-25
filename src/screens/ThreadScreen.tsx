@@ -18,6 +18,7 @@ import type { MainStackParamList } from '../navigation/types';
 import type { Message, ProfileSummary } from '../lib/types';
 import { getThread, markThreadRead, NotConnectedError, sendMessage, subscribeToThread } from '../lib/messages';
 import Avatar from '../components/Avatar';
+import { useTheme } from '../theme/ThemeProvider';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'Thread'>;
 
@@ -27,6 +28,7 @@ export default function ThreadScreen({ route, navigation }: Props) {
   const { otherUserId, otherProfile: otherProfileParam } = route.params;
   const { session } = useAppContext();
   const myUserId = session?.user.id;
+  const { colors } = useTheme();
 
   const [otherProfile, setOtherProfile] = useState<ProfileSummary | null>(otherProfileParam ?? null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -146,22 +148,22 @@ export default function ThreadScreen({ route, navigation }: Props) {
 
   if (loading) {
     return (
-      <View className="flex-1 bg-white items-center justify-center">
-        <ActivityIndicator size="large" color="#6C47FF" />
+      <View className="flex-1 bg-background items-center justify-center">
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
 
   if (error) {
     return (
-      <View className="flex-1 bg-white items-center justify-center px-6">
-        <Text className="text-red-600 text-center">{error}</Text>
+      <View className="flex-1 bg-background items-center justify-center px-6">
+        <Text className="text-danger text-center">{error}</Text>
       </View>
     );
   }
 
   return (
-    <KeyboardAvoidingView className="flex-1 bg-white" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView className="flex-1 bg-background" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <FlatList
         data={messages}
         keyExtractor={(item) => item.id}
@@ -170,7 +172,7 @@ export default function ThreadScreen({ route, navigation }: Props) {
         onEndReached={loadMore}
         onEndReachedThreshold={0.3}
         ListFooterComponent={
-          loadingMore ? <ActivityIndicator size="small" color="#6C47FF" className="my-2" /> : null
+          loadingMore ? <ActivityIndicator size="small" color={colors.accent} className="my-2" /> : null
         }
         ListEmptyComponent={
           <View className="items-center justify-center py-24">
@@ -180,7 +182,7 @@ export default function ThreadScreen({ route, navigation }: Props) {
               size="xl"
               className="mb-3"
             />
-            <Text className="text-base text-gray-500 text-center">
+            <Text className="text-base text-foreground-tertiary text-center">
               Say hello to {otherProfile?.display_name ?? otherProfile?.username ?? 'them'}.
             </Text>
           </View>
@@ -191,13 +193,13 @@ export default function ThreadScreen({ route, navigation }: Props) {
             <View className={`flex-row mb-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
               <View
                 className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
-                  isMine ? 'bg-brand-primary' : 'bg-gray-100'
+                  isMine ? 'bg-accent' : 'bg-surface-alt'
                 }`}
               >
-                <Text className={isMine ? 'text-white text-base' : 'text-gray-900 text-base'}>
+                <Text className={isMine ? 'text-on-accent text-base' : 'text-foreground text-base'}>
                   {item.content}
                 </Text>
-                <Text className={`text-xs mt-1 ${isMine ? 'text-white/70' : 'text-gray-400'}`}>
+                <Text className={`text-xs mt-1 ${isMine ? 'text-on-accent/70' : 'text-foreground-muted'}`}>
                   {new Date(item.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                 </Text>
               </View>
@@ -206,21 +208,21 @@ export default function ThreadScreen({ route, navigation }: Props) {
         }}
       />
 
-      <View className="flex-row items-center gap-2 px-4 py-3 border-t border-gray-100 bg-white">
+      <View className="flex-row items-center gap-2 px-4 py-3 border-t border-border-subtle bg-surface">
         <TextInput
-          className="flex-1 border border-gray-300 rounded-full px-4 py-2.5 text-base text-gray-900"
+          className="flex-1 border border-border rounded-full px-4 py-2.5 text-base text-foreground"
           placeholder="Message..."
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.foregroundMuted}
           value={input}
           onChangeText={setInput}
           multiline
         />
         <TouchableOpacity
-          className="bg-brand-primary rounded-full px-4 py-2.5 items-center justify-center"
+          className="bg-accent rounded-full px-4 py-2.5 items-center justify-center"
           onPress={handleSend}
           disabled={sending || !input.trim()}
         >
-          {sending ? <ActivityIndicator color="#fff" size="small" /> : <Text className="text-white font-semibold text-sm">Send</Text>}
+          {sending ? <ActivityIndicator color={colors.onAccent} size="small" /> : <Text className="text-on-accent font-semibold text-sm">Send</Text>}
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>

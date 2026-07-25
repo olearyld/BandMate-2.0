@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import { supabase } from '../lib/supabase';
 import type { City } from '../lib/types';
+import { useTheme } from '../theme/ThemeProvider';
 
 export interface CityPickerValue {
   city: string | null;
@@ -24,6 +25,7 @@ export default function CityPicker({
   value: CityPickerValue;
   onChange: (next: CityPickerValue) => void;
 }) {
+  const { colors } = useTheme();
   const [cities, setCities] = useState<City[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
@@ -62,24 +64,24 @@ export default function CityPicker({
   if (fallback) {
     return (
       <View>
-        <Text className="text-sm font-medium text-gray-700 mb-1">City</Text>
+        <Text className="text-sm font-medium text-foreground-secondary mb-1">City</Text>
         <TextInput
-          className="border border-gray-300 rounded-lg px-4 py-3 text-base text-gray-900 mb-4"
+          className="border border-border rounded-lg px-4 py-3 text-base text-foreground mb-4"
           placeholder="e.g. Austin"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.foregroundMuted}
           value={value.city ?? ''}
           onChangeText={(t) => onChange({ city: t, state: value.state, cityId: null })}
         />
-        <Text className="text-sm font-medium text-gray-700 mb-1">State</Text>
+        <Text className="text-sm font-medium text-foreground-secondary mb-1">State</Text>
         <TextInput
-          className="border border-gray-300 rounded-lg px-4 py-3 text-base text-gray-900 mb-2"
+          className="border border-border rounded-lg px-4 py-3 text-base text-foreground mb-2"
           placeholder="e.g. TX"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.foregroundMuted}
           value={value.state ?? ''}
           onChangeText={(t) => onChange({ city: value.city, state: t, cityId: null })}
         />
         <TouchableOpacity onPress={backToPicker}>
-          <Text className="text-brand-secondary text-sm mb-4">Search cities instead</Text>
+          <Text className="text-accent text-sm mb-4">Search cities instead</Text>
         </TouchableOpacity>
       </View>
     );
@@ -88,8 +90,8 @@ export default function CityPicker({
   if (loading) {
     return (
       <View className="mb-4">
-        <Text className="text-sm font-medium text-gray-700 mb-1">City</Text>
-        <ActivityIndicator color="#6C47FF" />
+        <Text className="text-sm font-medium text-foreground-secondary mb-1">City</Text>
+        <ActivityIndicator color={colors.accent} />
       </View>
     );
   }
@@ -97,13 +99,13 @@ export default function CityPicker({
   if (selectedCity) {
     return (
       <View className="mb-4">
-        <Text className="text-sm font-medium text-gray-700 mb-1">City</Text>
-        <View className="border border-brand-primary bg-purple-50 rounded-lg px-4 py-3 flex-row items-center justify-between">
-          <Text className="font-medium text-brand-primary">
+        <Text className="text-sm font-medium text-foreground-secondary mb-1">City</Text>
+        <View className="border border-accent bg-accent-subtle rounded-lg px-4 py-3 flex-row items-center justify-between">
+          <Text className="font-medium text-accent">
             {selectedCity.city}, {selectedCity.state}
           </Text>
           <TouchableOpacity onPress={() => onChange({ city: null, state: null, cityId: null })}>
-            <Text className="text-brand-secondary text-sm">Change</Text>
+            <Text className="text-accent text-sm">Change</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -112,29 +114,29 @@ export default function CityPicker({
 
   return (
     <View className="mb-4">
-      <Text className="text-sm font-medium text-gray-700 mb-1">City</Text>
+      <Text className="text-sm font-medium text-foreground-secondary mb-1">City</Text>
       <TextInput
-        className="border border-gray-300 rounded-lg px-4 py-3 text-base text-gray-900 mb-2"
+        className="border border-border rounded-lg px-4 py-3 text-base text-foreground mb-2"
         placeholder="Search for your city..."
-        placeholderTextColor="#9CA3AF"
+        placeholderTextColor={colors.foregroundMuted}
         value={query}
         onChangeText={setQuery}
         autoCapitalize="words"
       />
-      <View className="border border-gray-200 rounded-lg max-h-48">
+      <View className="border border-border-subtle rounded-lg max-h-48">
         <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
           {filtered.length === 0 ? (
             <View className="px-4 py-3">
-              <Text className="text-sm text-gray-500">No matching cities.</Text>
+              <Text className="text-sm text-foreground-tertiary">No matching cities.</Text>
             </View>
           ) : (
             filtered.map((c) => (
               <TouchableOpacity
                 key={c.id}
-                className="px-4 py-3 border-b border-gray-100"
+                className="px-4 py-3 border-b border-border-subtle"
                 onPress={() => selectCity(c)}
               >
-                <Text className="text-gray-900">
+                <Text className="text-foreground">
                   {c.city}, {c.state}
                 </Text>
               </TouchableOpacity>
@@ -143,7 +145,7 @@ export default function CityPicker({
         </ScrollView>
       </View>
       <TouchableOpacity onPress={useFallback} className="mt-2">
-        <Text className="text-brand-secondary text-sm">My city isn't listed</Text>
+        <Text className="text-accent text-sm">My city isn't listed</Text>
       </TouchableOpacity>
     </View>
   );

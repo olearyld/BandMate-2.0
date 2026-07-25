@@ -7,6 +7,7 @@ import type { MainTabParamList, MainStackParamList } from '../navigation/types';
 import type { ConversationSummary } from '../lib/types';
 import { listConversations } from '../lib/messages';
 import Avatar from '../components/Avatar';
+import { useTheme } from '../theme/ThemeProvider';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Messages'>,
@@ -14,6 +15,7 @@ type Props = CompositeScreenProps<
 >;
 
 export default function ConversationsListScreen({ navigation }: Props) {
+  const { colors } = useTheme();
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -55,24 +57,24 @@ export default function ConversationsListScreen({ navigation }: Props) {
 
   if (loading) {
     return (
-      <View className="flex-1 bg-white items-center justify-center">
-        <ActivityIndicator size="large" color="#6C47FF" />
+      <View className="flex-1 bg-background items-center justify-center">
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
 
   if (error) {
     return (
-      <View className="flex-1 bg-white items-center justify-center px-6">
-        <Text className="text-red-600 text-center">{error}</Text>
+      <View className="flex-1 bg-background items-center justify-center px-6">
+        <Text className="text-danger text-center">{error}</Text>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-white">
+    <View className="flex-1 bg-background">
       <View className="pt-12 px-4 pb-2">
-        <Text className="text-2xl font-bold text-gray-900">Messages</Text>
+        <Text className="text-2xl font-bold text-foreground">Messages</Text>
       </View>
       <FlatList
         data={conversations}
@@ -80,7 +82,7 @@ export default function ConversationsListScreen({ navigation }: Props) {
         contentContainerClassName="px-4 pb-24"
         ListEmptyComponent={
           <View className="items-center justify-center py-24">
-            <Text className="text-base text-gray-500 text-center">
+            <Text className="text-base text-foreground-tertiary text-center">
               No conversations yet — message a connection to get started.
             </Text>
           </View>
@@ -107,7 +109,7 @@ const ConversationRow = memo(function ConversationRow({
 }) {
   return (
     <TouchableOpacity
-      className="flex-row items-center py-3 border-b border-gray-100"
+      className="flex-row items-center py-3 border-b border-border-subtle"
       onPress={() => onPress(item)}
     >
       <Avatar
@@ -117,23 +119,23 @@ const ConversationRow = memo(function ConversationRow({
         className="mr-3"
       />
       <View className="flex-1 mr-2">
-        <Text className="text-base font-semibold text-gray-900" numberOfLines={1}>
+        <Text className="text-base font-semibold text-foreground" numberOfLines={1}>
           {item.otherProfile.display_name ?? item.otherProfile.username}
         </Text>
         <Text
-          className={`text-sm ${item.unreadCount > 0 ? 'text-gray-900 font-medium' : 'text-gray-500'}`}
+          className={`text-sm ${item.unreadCount > 0 ? 'text-foreground font-medium' : 'text-foreground-tertiary'}`}
           numberOfLines={1}
         >
           {item.lastMessage.content}
         </Text>
       </View>
       <View className="items-end">
-        <Text className="text-xs text-gray-400 mb-1">
+        <Text className="text-xs text-foreground-muted mb-1">
           {new Date(item.lastMessage.createdAt).toLocaleDateString()}
         </Text>
         {item.unreadCount > 0 && (
-          <View className="bg-brand-primary rounded-full min-w-[20px] h-5 px-1.5 items-center justify-center">
-            <Text className="text-white text-xs font-bold">{item.unreadCount}</Text>
+          <View className="bg-accent rounded-full min-w-[20px] h-5 px-1.5 items-center justify-center">
+            <Text className="text-on-accent text-xs font-bold">{item.unreadCount}</Text>
           </View>
         )}
       </View>

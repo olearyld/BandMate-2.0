@@ -11,6 +11,7 @@ import { discoverProfiles } from '../lib/discover';
 import { sendRequest, listIncomingRequests, listSentRequests, listAcceptedConnections } from '../lib/connections';
 import Avatar from '../components/Avatar';
 import ChipToggleGroup, { toggleInSet } from '../components/ChipToggleGroup';
+import { useTheme } from '../theme/ThemeProvider';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Discover'>,
@@ -23,6 +24,7 @@ const RADIUS_OPTIONS = [10, 25, 50, 100];
 export default function DiscoverScreen({ navigation }: Props) {
   const { session } = useAppContext();
   const userId = session?.user.id;
+  const { colors } = useTheme();
 
   const [allInstruments, setAllInstruments] = useState<Instrument[]>([]);
   const [allGenres, setAllGenres] = useState<Genre[]>([]);
@@ -194,10 +196,10 @@ export default function DiscoverScreen({ navigation }: Props) {
   const radiusDisabled = !myMatchedCityId;
 
   return (
-    <View className="flex-1 bg-white">
+    <View className="flex-1 bg-background">
       {loading && results.length === 0 ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#6C47FF" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       ) : (
         <FlatList
@@ -208,9 +210,9 @@ export default function DiscoverScreen({ navigation }: Props) {
           onEndReached={handleLoadMore}
           ListHeaderComponent={
             <View className="px-4 pt-12 pb-2">
-              <Text className="text-2xl font-bold text-gray-900 mb-4">Discover</Text>
+              <Text className="text-2xl font-bold text-foreground mb-4">Discover</Text>
 
-              <Text className="text-sm font-semibold text-gray-700 mb-2">Distance</Text>
+              <Text className="text-sm font-semibold text-foreground-secondary mb-2">Distance</Text>
               <View className="flex-row flex-wrap gap-2 mb-1">
                 {[{ label: 'Any distance', value: null as number | null }, ...RADIUS_OPTIONS.map((mi) => ({ label: `${mi} mi`, value: mi }))].map(
                   (opt) => {
@@ -222,15 +224,15 @@ export default function DiscoverScreen({ navigation }: Props) {
                         onPress={() => setRadiusMiles(opt.value)}
                         className={`px-4 py-2 rounded-full border ${
                           radiusDisabled
-                            ? 'border-gray-200'
+                            ? 'border-border-subtle'
                             : isSel
-                              ? 'bg-brand-primary border-brand-primary'
-                              : 'border-gray-300'
+                              ? 'bg-accent border-accent'
+                              : 'border-border'
                         }`}
                       >
                         <Text
                           className={`text-sm font-medium ${
-                            radiusDisabled ? 'text-gray-300' : isSel ? 'text-white' : 'text-gray-700'
+                            radiusDisabled ? 'text-foreground-muted' : isSel ? 'text-on-accent' : 'text-foreground-secondary'
                           }`}
                         >
                           {opt.label}
@@ -241,12 +243,12 @@ export default function DiscoverScreen({ navigation }: Props) {
                 )}
               </View>
               {radiusDisabled && (
-                <Text className="text-xs text-gray-400 mb-3">
+                <Text className="text-xs text-foreground-muted mb-3">
                   Set your city in Edit Profile to enable distance search.
                 </Text>
               )}
 
-              <Text className="text-sm font-semibold text-gray-700 mt-3 mb-2">Instruments</Text>
+              <Text className="text-sm font-semibold text-foreground-secondary mt-3 mb-2">Instruments</Text>
               <ChipToggleGroup
                 items={allInstruments}
                 getKey={(inst) => inst.id}
@@ -255,7 +257,7 @@ export default function DiscoverScreen({ navigation }: Props) {
                 onToggle={(inst) => toggleInstrument(inst.id)}
               />
 
-              <Text className="text-sm font-semibold text-gray-700 mt-4 mb-2">Genres</Text>
+              <Text className="text-sm font-semibold text-foreground-secondary mt-4 mb-2">Genres</Text>
               <ChipToggleGroup
                 items={allGenres}
                 getKey={(genre) => genre.id}
@@ -265,18 +267,18 @@ export default function DiscoverScreen({ navigation }: Props) {
               />
 
               {error && (
-                <View className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 mt-4">
-                  <Text className="text-red-700 text-sm">{error}</Text>
+                <View className="bg-danger-subtle border border-danger-line rounded-lg px-4 py-3 mt-4">
+                  <Text className="text-danger text-sm">{error}</Text>
                 </View>
               )}
 
-              <View className="h-px bg-gray-100 mt-4" />
+              <View className="h-px bg-surface-alt mt-4" />
             </View>
           }
           ListEmptyComponent={
             !loading ? (
               <View className="items-center justify-center px-6 py-16">
-                <Text className="text-base text-gray-500 text-center">
+                <Text className="text-base text-foreground-tertiary text-center">
                   No musicians match these filters yet.
                 </Text>
               </View>
@@ -285,7 +287,7 @@ export default function DiscoverScreen({ navigation }: Props) {
           ListFooterComponent={
             loadingMore ? (
               <View className="py-6">
-                <ActivityIndicator color="#6C47FF" />
+                <ActivityIndicator color={colors.accent} />
               </View>
             ) : null
           }
@@ -324,8 +326,9 @@ const DiscoverRow = memo(function DiscoverRow({
   onPress: (profileId: string) => void;
   onConnect: (profileId: string) => void;
 }) {
+  const { colors } = useTheme();
   return (
-    <View className="flex-row items-center justify-between py-3 px-4 border-b border-gray-100">
+    <View className="flex-row items-center justify-between py-3 px-4 border-b border-border-subtle">
       <TouchableOpacity
         activeOpacity={0.7}
         className="flex-row items-center flex-1 mr-3"
@@ -333,11 +336,11 @@ const DiscoverRow = memo(function DiscoverRow({
       >
         <Avatar uri={row.avatar_url} name={row.display_name ?? row.username} size="lg" className="mr-3" />
         <View className="flex-1">
-          <Text className="text-base font-semibold text-gray-900" numberOfLines={1}>
+          <Text className="text-base font-semibold text-foreground" numberOfLines={1}>
             {row.display_name ?? row.username}
           </Text>
           {(row.location_city || row.location_state || row.distance_miles != null) && (
-            <Text className="text-xs text-gray-400" numberOfLines={1}>
+            <Text className="text-xs text-foreground-muted" numberOfLines={1}>
               📍 {[row.location_city, row.location_state].filter(Boolean).join(', ')}
               {row.distance_miles != null ? ` · ${Math.round(row.distance_miles)} mi` : ''}
             </Text>
@@ -345,13 +348,13 @@ const DiscoverRow = memo(function DiscoverRow({
           {(row.instruments.length > 0 || row.genres.length > 0) && (
             <View className="flex-row flex-wrap gap-1 mt-1">
               {row.instruments.slice(0, 3).map((inst) => (
-                <View key={`i-${inst.id}`} className="px-2 py-0.5 rounded-full bg-gray-100">
-                  <Text className="text-xs text-gray-500">{inst.name}</Text>
+                <View key={`i-${inst.id}`} className="px-2 py-0.5 rounded-full bg-surface-alt">
+                  <Text className="text-xs text-foreground-tertiary">{inst.name}</Text>
                 </View>
               ))}
               {row.genres.slice(0, 2).map((genre) => (
-                <View key={`g-${genre.id}`} className="px-2 py-0.5 rounded-full bg-purple-50 border border-purple-200">
-                  <Text className="text-xs text-brand-primary">{genre.name}</Text>
+                <View key={`g-${genre.id}`} className="px-2 py-0.5 rounded-full bg-accent-subtle border border-accent-line">
+                  <Text className="text-xs text-accent">{genre.name}</Text>
                 </View>
               ))}
             </View>
@@ -359,18 +362,18 @@ const DiscoverRow = memo(function DiscoverRow({
         </View>
       </TouchableOpacity>
       {busy ? (
-        <ActivityIndicator size="small" color="#6C47FF" />
+        <ActivityIndicator size="small" color={colors.accent} />
       ) : status === 'accepted' ? (
-        <View className="border border-green-300 bg-green-50 px-4 py-2 rounded-full">
-          <Text className="text-green-700 text-xs font-semibold">Connected</Text>
+        <View className="border border-success-line bg-success-subtle px-4 py-2 rounded-full">
+          <Text className="text-success text-xs font-semibold">Connected</Text>
         </View>
       ) : status === 'pending_sent' || status === 'pending_received' ? (
-        <View className="bg-gray-100 px-4 py-2 rounded-full">
-          <Text className="text-gray-500 text-xs font-semibold">Pending</Text>
+        <View className="bg-surface-alt px-4 py-2 rounded-full">
+          <Text className="text-foreground-tertiary text-xs font-semibold">Pending</Text>
         </View>
       ) : (
-        <TouchableOpacity className="bg-brand-primary px-4 py-2 rounded-full" onPress={() => onConnect(row.id)}>
-          <Text className="text-white text-xs font-semibold">Connect</Text>
+        <TouchableOpacity className="bg-accent px-4 py-2 rounded-full" onPress={() => onConnect(row.id)}>
+          <Text className="text-on-accent text-xs font-semibold">Connect</Text>
         </TouchableOpacity>
       )}
     </View>

@@ -14,10 +14,12 @@ import { supabase } from '../../lib/supabase';
 import type { OnboardingStackParamList } from '../../navigation/types';
 import { useOnboarding } from '../../navigation/OnboardingContext';
 import CityPicker, { type CityPickerValue } from '../../components/CityPicker';
+import { useTheme } from '../../theme/ThemeProvider';
 
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'Step1'>;
 
 export default function Step1BasicInfo({ navigation }: Props) {
+  const { colors } = useTheme();
   const { draft, setDraft } = useOnboarding();
   const [username, setUsername] = useState(draft.username ?? '');
   const [displayName, setDisplayName] = useState(draft.display_name ?? '');
@@ -59,39 +61,39 @@ export default function Step1BasicInfo({ navigation }: Props) {
 
   return (
     <KeyboardAvoidingView
-      className="flex-1 bg-white"
+      className="flex-1 bg-background"
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerClassName="px-6 py-10">
-        <Text className="text-xs font-semibold text-brand-primary mb-1 tracking-widest uppercase">
+        <Text className="text-xs font-semibold text-accent mb-1 tracking-widest uppercase">
           Step 1 of 4
         </Text>
-        <Text className="text-2xl font-bold text-gray-900 mb-1">The basics</Text>
-        <Text className="text-sm text-gray-500 mb-8">How should other musicians find you?</Text>
+        <Text className="text-2xl font-bold text-foreground mb-1">The basics</Text>
+        <Text className="text-sm text-foreground-tertiary mb-8">How should other musicians find you?</Text>
 
         {error && (
-          <View className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-4">
-            <Text className="text-red-700 text-sm">{error}</Text>
+          <View className="bg-danger-subtle border border-danger-line rounded-lg px-4 py-3 mb-4">
+            <Text className="text-danger text-sm">{error}</Text>
           </View>
         )}
 
-        <Text className="text-sm font-medium text-gray-700 mb-1">
-          Username <Text className="text-red-500">*</Text>
+        <Text className="text-sm font-medium text-foreground-secondary mb-1">
+          Username <Text className="text-danger">*</Text>
         </Text>
         <TextInput
-          className="border border-gray-300 rounded-lg px-4 py-3 text-base text-gray-900 mb-4"
+          className="border border-border rounded-lg px-4 py-3 text-base text-foreground mb-4"
           placeholder="e.g. jimi_rocks"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.foregroundMuted}
           autoCapitalize="none"
           value={username}
           onChangeText={setUsername}
         />
 
-        <Text className="text-sm font-medium text-gray-700 mb-1">Display name</Text>
+        <Text className="text-sm font-medium text-foreground-secondary mb-1">Display name</Text>
         <TextInput
-          className="border border-gray-300 rounded-lg px-4 py-3 text-base text-gray-900 mb-4"
+          className="border border-border rounded-lg px-4 py-3 text-base text-foreground mb-4"
           placeholder="e.g. Jimi Henderson"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.foregroundMuted}
           value={displayName}
           onChangeText={setDisplayName}
         />
@@ -99,14 +101,14 @@ export default function Step1BasicInfo({ navigation }: Props) {
         <CityPicker value={location} onChange={setLocation} />
 
         <TouchableOpacity
-          className="bg-brand-primary rounded-lg py-4 items-center"
+          className="bg-accent rounded-lg py-4 items-center"
           onPress={handleNext}
           disabled={checking}
         >
           {checking ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={colors.onAccent} />
           ) : (
-            <Text className="text-white font-semibold text-base">Next →</Text>
+            <Text className="text-on-accent font-semibold text-base">Next →</Text>
           )}
         </TouchableOpacity>
       </ScrollView>

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, DarkTheme, Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useTheme } from '../theme/ThemeProvider';
 
 import LoginScreen from '../screens/auth/LoginScreen';
 import SignUpScreen from '../screens/auth/SignUpScreen';
@@ -89,14 +90,15 @@ function useUnreadMessageBadge(userId: string | undefined) {
 function MainTabs() {
   const { session } = useAppContext();
   const { count: unreadCount, refresh: refreshUnreadBadge } = useUnreadMessageBadge(session?.user.id);
+  const { colors } = useTheme();
 
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#6C47FF',
-        tabBarInactiveTintColor: '#9CA3AF',
-        tabBarStyle: { borderTopColor: '#F3F4F6' },
+        tabBarActiveTintColor: colors.accent,
+        tabBarInactiveTintColor: colors.foregroundMuted,
+        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.borderSubtle },
       }}
     >
       <Tab.Screen
@@ -174,19 +176,39 @@ function MainNavigator() {
   );
 }
 
+function useNavigationTheme(): Theme {
+  const { colors, colorScheme } = useTheme();
+  const base = colorScheme === 'dark' ? DarkTheme : DefaultTheme;
+  return {
+    ...base,
+    dark: colorScheme === 'dark',
+    colors: {
+      ...base.colors,
+      primary: colors.accent,
+      background: colors.background,
+      card: colors.surface,
+      text: colors.foreground,
+      border: colors.borderSubtle,
+      notification: colors.danger,
+    },
+  };
+}
+
 export default function RootNavigator() {
   const { appState } = useAppContext();
+  const { colors } = useTheme();
+  const navigationTheme = useNavigationTheme();
 
   if (appState === 'loading') {
     return (
-      <View className="flex-1 bg-white items-center justify-center">
-        <ActivityIndicator size="large" color="#6C47FF" />
+      <View className="flex-1 bg-background items-center justify-center">
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer theme={navigationTheme}>
       {appState === 'unauthenticated' && <AuthNavigator />}
       {appState === 'onboarding' && <OnboardingNavigator />}
       {appState === 'authenticated' && <MainNavigator />}

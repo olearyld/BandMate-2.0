@@ -11,10 +11,12 @@ import { supabase } from '../../lib/supabase';
 import { SKILL_LEVELS, type Instrument, type ExperienceLevel } from '../../lib/types';
 import type { OnboardingStackParamList } from '../../navigation/types';
 import { useOnboarding } from '../../navigation/OnboardingContext';
+import { useTheme } from '../../theme/ThemeProvider';
 
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'Step2'>;
 
 export default function Step2Instruments({ navigation }: Props) {
+  const { colors } = useTheme();
   const { draft, setDraft } = useOnboarding();
   const [instruments, setInstruments] = useState<Instrument[]>([]);
   const [selected, setSelected] = useState<Record<number, ExperienceLevel>>(
@@ -60,26 +62,26 @@ export default function Step2Instruments({ navigation }: Props) {
 
   if (loading) {
     return (
-      <View className="flex-1 bg-white items-center justify-center">
-        <ActivityIndicator size="large" color="#6C47FF" />
+      <View className="flex-1 bg-background items-center justify-center">
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-white">
+    <View className="flex-1 bg-background">
       <ScrollView contentContainerClassName="px-6 py-10 pb-32">
-        <Text className="text-xs font-semibold text-brand-primary mb-1 tracking-widest uppercase">
+        <Text className="text-xs font-semibold text-accent mb-1 tracking-widest uppercase">
           Step 2 of 4
         </Text>
-        <Text className="text-2xl font-bold text-gray-900 mb-1">Your instruments</Text>
-        <Text className="text-sm text-gray-500 mb-6">
+        <Text className="text-2xl font-bold text-foreground mb-1">Your instruments</Text>
+        <Text className="text-sm text-foreground-tertiary mb-6">
           Select everything you play and your skill level for each.
         </Text>
 
         {error && (
-          <View className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-4">
-            <Text className="text-red-700 text-sm">{error}</Text>
+          <View className="bg-danger-subtle border border-danger-line rounded-lg px-4 py-3 mb-4">
+            <Text className="text-danger text-sm">{error}</Text>
           </View>
         )}
 
@@ -89,12 +91,12 @@ export default function Step2Instruments({ navigation }: Props) {
             <View key={inst.id} className="mb-3">
               <TouchableOpacity
                 className={`border rounded-lg px-4 py-3 flex-row items-center justify-between ${
-                  isSelected ? 'border-brand-primary bg-purple-50' : 'border-gray-200'
+                  isSelected ? 'border-accent bg-accent-subtle' : 'border-border-subtle'
                 }`}
                 onPress={() => toggleInstrument(inst.id)}
               >
                 <Text
-                  className={`font-medium ${isSelected ? 'text-brand-primary' : 'text-gray-700'}`}
+                  className={`font-medium ${isSelected ? 'text-accent' : 'text-foreground-secondary'}`}
                 >
                   {inst.name}
                 </Text>
@@ -108,14 +110,14 @@ export default function Step2Instruments({ navigation }: Props) {
                       key={sl.value}
                       className={`flex-1 py-1.5 rounded-full border items-center ${
                         selected[inst.id] === sl.value
-                          ? 'bg-brand-primary border-brand-primary'
-                          : 'border-gray-300'
+                          ? 'bg-accent border-accent'
+                          : 'border-border'
                       }`}
                       onPress={() => setSkill(inst.id, sl.value)}
                     >
                       <Text
                         className={`text-xs font-medium ${
-                          selected[inst.id] === sl.value ? 'text-white' : 'text-gray-600'
+                          selected[inst.id] === sl.value ? 'text-on-accent' : 'text-foreground-secondary'
                         }`}
                       >
                         {sl.label}
@@ -129,12 +131,12 @@ export default function Step2Instruments({ navigation }: Props) {
         })}
       </ScrollView>
 
-      <View className="absolute bottom-0 left-0 right-0 px-6 py-4 bg-white border-t border-gray-100">
+      <View className="absolute bottom-0 left-0 right-0 px-6 py-4 bg-surface border-t border-border-subtle">
         <TouchableOpacity
-          className="bg-brand-primary rounded-lg py-4 items-center"
+          className="bg-accent rounded-lg py-4 items-center"
           onPress={handleNext}
         >
-          <Text className="text-white font-semibold text-base">Next →</Text>
+          <Text className="text-on-accent font-semibold text-base">Next →</Text>
         </TouchableOpacity>
       </View>
     </View>

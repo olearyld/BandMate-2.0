@@ -31,10 +31,10 @@ export default function StoriesTray({
       contentContainerClassName="px-4 gap-4"
     >
       <TouchableOpacity onPress={onPressAdd} className="items-center" style={{ width: TILE_WIDTH }}>
-        <View className="w-14 h-14 rounded-full border-2 border-dashed border-gray-300 items-center justify-center">
-          <Text className="text-2xl text-gray-400 leading-none">+</Text>
+        <View className="w-14 h-14 rounded-full border-2 border-dashed border-border items-center justify-center">
+          <Text className="text-2xl text-foreground-muted leading-none">+</Text>
         </View>
-        <Text className="text-xs text-gray-500 mt-1" numberOfLines={1}>
+        <Text className="text-xs text-foreground-tertiary mt-1" numberOfLines={1}>
           Add story
         </Text>
       </TouchableOpacity>
@@ -46,14 +46,14 @@ export default function StoriesTray({
           className="items-center"
           style={{ width: TILE_WIDTH }}
         >
-          <View className="w-14 h-14 rounded-full border-2 border-brand-primary p-0.5">
+          <View className="w-14 h-14 rounded-full border-2 border-accent p-0.5">
             <Avatar
               uri={group.profile.avatar_url}
               name={group.profile.display_name ?? group.profile.username}
               size="lg"
             />
           </View>
-          <Text className="text-xs text-gray-700 mt-1" numberOfLines={1}>
+          <Text className="text-xs text-foreground-secondary mt-1" numberOfLines={1}>
             {group.profile.id === currentUserId
               ? 'You'
               : group.profile.display_name ?? group.profile.username}
