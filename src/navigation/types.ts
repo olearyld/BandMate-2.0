@@ -15,7 +15,10 @@ export type OnboardingStackParamList = {
 export type MainTabParamList = {
   Feed: undefined;
   Discover: undefined;
-  Connections: undefined;
+  // Never actually navigated to -- its tabPress listener (see RootNavigator)
+  // preempts the default tab switch and opens the CreatePost modal instead.
+  // Connections moved into MyProfileScreen as an in-screen segment.
+  Post: undefined;
   MyProfile: undefined;
   Messages: undefined;
 };

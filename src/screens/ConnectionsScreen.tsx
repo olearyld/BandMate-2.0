@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView, Alert } from 'react-native';
-import { useFocusEffect, type CompositeScreenProps } from '@react-navigation/native';
-import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAppContext } from '../navigation/AppContext';
-import type { MainTabParamList, MainStackParamList } from '../navigation/types';
+import type { MainStackParamList } from '../navigation/types';
 import type { ConnectionListItem } from '../lib/types';
 import Avatar from '../components/Avatar';
 import { useTheme } from '../theme/ThemeProvider';
@@ -16,14 +15,13 @@ import {
   listSentRequests,
 } from '../lib/connections';
 
-type Props = CompositeScreenProps<
-  BottomTabScreenProps<MainTabParamList, 'Connections'>,
-  NativeStackScreenProps<MainStackParamList>
->;
-
 type Section = 'requests' | 'sent' | 'connections';
 
-export default function ConnectionsScreen({ navigation }: Props) {
+// Embedded as the "Connections" segment of MyProfileScreen (Phase 8b) rather
+// than a top-level tab route, so navigation is resolved via the hook instead
+// of a route prop -- see CONVENTIONS.md.
+export default function ConnectionsScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const { session } = useAppContext();
   const userId = session?.user.id;
   const { colors } = useTheme();
@@ -135,8 +133,7 @@ export default function ConnectionsScreen({ navigation }: Props) {
 
   return (
     <View className="flex-1 bg-background">
-      <View className="pt-12 px-4 pb-2">
-        <Text className="text-2xl font-bold text-foreground mb-4">Connections</Text>
+      <View className="px-4 pt-4 pb-2">
         <View className="flex-row gap-2">
           {sections.map((s) => (
             <TouchableOpacity

@@ -27,7 +27,10 @@ import ProfileBody, { HighlightThumb } from '../../components/ProfileBody';
 import AudioPlayer from '../../components/AudioPlayer';
 import CityPicker, { type CityPickerValue } from '../../components/CityPicker';
 import ChipToggleGroup, { toggleInSet } from '../../components/ChipToggleGroup';
+import ConnectionsScreen from '../ConnectionsScreen';
 import { useTheme } from '../../theme/ThemeProvider';
+
+type ProfileSegment = 'profile' | 'connections';
 
 export default function MyProfileScreen() {
   const { colors } = useTheme();
@@ -36,6 +39,7 @@ export default function MyProfileScreen() {
   const [editing, setEditing] = useState(false);
   const [managingHighlights, setManagingHighlights] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [segment, setSegment] = useState<ProfileSegment>('profile');
 
   async function handleSignOut() {
     await supabase.auth.signOut();
@@ -100,21 +104,68 @@ export default function MyProfileScreen() {
   }
 
   return (
-    <View className="flex-1">
-      <View className="absolute top-12 left-4 z-10">
-        <TouchableOpacity onPress={handleSignOut}>
-          <Text className="text-foreground-muted text-sm font-medium">Sign out</Text>
-        </TouchableOpacity>
+    <View className="flex-1 bg-background">
+      <View className="pt-12 px-4 pb-3 flex-row items-center">
+        <View className="w-16">
+          <TouchableOpacity onPress={handleSignOut}>
+            <Text className="text-foreground-muted text-sm font-medium">Sign out</Text>
+          </TouchableOpacity>
+        </View>
+        <View className="flex-1 flex-row justify-center">
+          <ProfileSegmentToggle segment={segment} onChange={setSegment} />
+        </View>
+        <View className="w-16 items-end">
+          {segment === 'profile' && (
+            <TouchableOpacity
+              className="bg-accent px-4 py-2 rounded-full"
+              onPress={() => setEditing(true)}
+            >
+              <Text className="text-on-accent font-semibold text-sm">Edit</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
-      <View className="absolute top-12 right-4 z-10">
+      {segment === 'profile' ? (
+        <ProfileBody profile={profile} onManageHighlights={() => setManagingHighlights(true)} />
+      ) : (
+        <ConnectionsScreen />
+      )}
+    </View>
+  );
+}
+
+// Profile/Connections segmented toggle (Phase 8b) -- Connections used to be
+// its own root tab; its tab-bar slot is now the center Post button (see
+// RootNavigator), so it lives here instead. Same pill-toggle visual pattern
+// ConnectionsScreen's own Requests/Sent/Connections control already uses.
+function ProfileSegmentToggle({
+  segment,
+  onChange,
+}: {
+  segment: ProfileSegment;
+  onChange: (segment: ProfileSegment) => void;
+}) {
+  const options: { key: ProfileSegment; label: string }[] = [
+    { key: 'profile', label: 'Profile' },
+    { key: 'connections', label: 'Connections' },
+  ];
+  return (
+    <View className="flex-row bg-surface-alt rounded-full p-1">
+      {options.map((opt) => (
         <TouchableOpacity
-          className="bg-accent px-4 py-2 rounded-full"
-          onPress={() => setEditing(true)}
+          key={opt.key}
+          className={`px-4 py-1.5 rounded-full ${segment === opt.key ? 'bg-accent' : ''}`}
+          onPress={() => onChange(opt.key)}
         >
-          <Text className="text-on-accent font-semibold text-sm">Edit</Text>
+          <Text
+            className={`text-sm font-semibold ${
+              segment === opt.key ? 'text-on-accent' : 'text-foreground-secondary'
+            }`}
+          >
+            {opt.label}
+          </Text>
         </TouchableOpacity>
-      </View>
-      <ProfileBody profile={profile} onManageHighlights={() => setManagingHighlights(true)} />
+      ))}
     </View>
   );
 }

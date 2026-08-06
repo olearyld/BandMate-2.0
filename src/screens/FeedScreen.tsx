@@ -39,7 +39,7 @@ const FEED_SELECT = `
 export default function FeedScreen({ navigation }: Props) {
   const { session } = useAppContext();
   const currentUserId = session?.user.id;
-  const { colors, elevation } = useTheme();
+  const { colors } = useTheme();
 
   const [posts, setPosts] = useState<FeedPostRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -228,14 +228,6 @@ export default function FeedScreen({ navigation }: Props) {
           )}
         />
       )}
-
-      <TouchableOpacity
-        className="absolute bottom-6 right-6 w-14 h-14 rounded-full bg-accent items-center justify-center"
-        style={{ shadowColor: '#000', ...elevation.md }}
-        onPress={() => navigation.navigate('CreatePost')}
-      >
-        <Text className="text-on-accent text-3xl leading-none" style={{ marginTop: -2 }}>+</Text>
-      </TouchableOpacity>
     </View>
   );
 }

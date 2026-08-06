@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer, DefaultTheme, DarkTheme, Theme } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator, type NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { createBottomTabNavigator, type BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
+import { PlatformPressable } from '@react-navigation/elements';
 import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { useTheme } from '../theme/ThemeProvider';
 
@@ -14,7 +15,6 @@ import Step3Genres from '../screens/onboarding/Step3Genres';
 import Step4Media from '../screens/onboarding/Step4Media';
 import FeedScreen from '../screens/FeedScreen';
 import DiscoverScreen from '../screens/DiscoverScreen';
-import ConnectionsScreen from '../screens/ConnectionsScreen';
 import ConversationsListScreen from '../screens/ConversationsListScreen';
 import ThreadScreen from '../screens/ThreadScreen';
 import MyProfileScreen from '../screens/profile/MyProfileScreen';
@@ -88,6 +88,29 @@ function useUnreadMessageBadge(userId: string | undefined) {
   return { count, refresh };
 }
 
+// Never rendered in practice -- the Post tab's tabPress listener always
+// preventDefaults before the tab bar would focus/mount this.
+function PostPlaceholder() {
+  return null;
+}
+
+// Raised circular accent button standing in for the Post tab's normal
+// icon+label, same visual language as the create-post FAB this replaced
+// (bg-accent circle, elevation.md shadow -- see CONVENTIONS.md).
+function PostTabButton({ style, children, ...rest }: BottomTabBarButtonProps) {
+  const { colors, elevation } = useTheme();
+  return (
+    <PlatformPressable {...rest} style={[style, { top: -18, alignItems: 'center' }]}>
+      <View
+        className="w-14 h-14 rounded-full bg-accent items-center justify-center"
+        style={{ shadowColor: '#000', ...elevation.md }}
+      >
+        <Ionicons name="add" size={30} color={colors.onAccent} />
+      </View>
+    </PlatformPressable>
+  );
+}
+
 function MainTabs() {
   const { session } = useAppContext();
   const { count: unreadCount, refresh: refreshUnreadBadge } = useUnreadMessageBadge(session?.user.id);
@@ -123,14 +146,18 @@ function MainTabs() {
         }}
       />
       <Tab.Screen
-        name="Connections"
-        component={ConnectionsScreen}
+        name="Post"
+        component={PostPlaceholder}
         options={{
-          title: 'Connections',
-          tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? 'people' : 'people-outline'} color={color} size={28} />
-          ),
+          title: '',
+          tabBarButton: PostTabButton,
         }}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            e.preventDefault();
+            navigation.getParent<NativeStackNavigationProp<MainStackParamList>>()?.navigate('CreatePost');
+          },
+        })}
       />
       <Tab.Screen
         name="MyProfile"
