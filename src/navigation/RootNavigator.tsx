@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer, DefaultTheme, DarkTheme, Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { useTheme } from '../theme/ThemeProvider';
 
 import LoginScreen from '../screens/auth/LoginScreen';
@@ -104,29 +105,51 @@ function MainTabs() {
       <Tab.Screen
         name="Feed"
         component={FeedScreen}
-        options={{ title: 'Feed', tabBarIcon: () => <Text style={{ fontSize: 20 }}>🎵</Text> }}
+        options={{
+          title: 'Feed',
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={focused ? 'musical-notes' : 'musical-notes-outline'} color={color} size={28} />
+          ),
+        }}
       />
       <Tab.Screen
         name="Discover"
         component={DiscoverScreen}
-        options={{ title: 'Discover', tabBarIcon: () => <Text style={{ fontSize: 20 }}>🔎</Text> }}
+        options={{
+          title: 'Discover',
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={focused ? 'search' : 'search-outline'} color={color} size={28} />
+          ),
+        }}
       />
       <Tab.Screen
         name="Connections"
         component={ConnectionsScreen}
-        options={{ title: 'Connections', tabBarIcon: () => <Text style={{ fontSize: 20 }}>🤝</Text> }}
+        options={{
+          title: 'Connections',
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={focused ? 'people' : 'people-outline'} color={color} size={28} />
+          ),
+        }}
       />
       <Tab.Screen
         name="MyProfile"
         component={MyProfileScreen}
-        options={{ title: 'Profile', tabBarIcon: () => <Text style={{ fontSize: 20 }}>👤</Text> }}
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={focused ? 'person' : 'person-outline'} color={color} size={28} />
+          ),
+        }}
       />
       <Tab.Screen
         name="Messages"
         component={ConversationsListScreen}
         options={{
           title: 'Messages',
-          tabBarIcon: () => <Text style={{ fontSize: 20 }}>💬</Text>,
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={focused ? 'chatbubble-ellipses' : 'chatbubble-ellipses-outline'} color={color} size={28} />
+          ),
           tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
         }}
         listeners={{ tabPress: () => refreshUnreadBadge() }}

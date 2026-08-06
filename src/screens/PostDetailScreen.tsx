@@ -19,6 +19,7 @@ import AudioPlayer from '../components/AudioPlayer';
 import Avatar from '../components/Avatar';
 import VideoPlayerBlock from '../components/VideoPlayerBlock';
 import { useTheme } from '../theme/ThemeProvider';
+import { Ionicons } from '@react-native-vector-icons/ionicons';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'PostDetail'>;
 
@@ -167,12 +168,18 @@ export default function PostDetailScreen({ route, navigation }: Props) {
 
           <View className="flex-row items-center mt-4 gap-5 pb-4 border-b border-border-subtle">
             <TouchableOpacity onPress={handleToggleLike} className="flex-row items-center gap-1.5">
-              <Text className="text-lg">{likedByMe ? '❤️' : '🤍'}</Text>
+              <Ionicons
+                name={likedByMe ? 'heart' : 'heart-outline'}
+                size={30}
+                color={likedByMe ? colors.danger : colors.foregroundSecondary}
+              />
               <Text className="text-sm text-foreground-tertiary">{post.likes.length}</Text>
             </TouchableOpacity>
             <View className="flex-row items-center gap-1.5">
-              <Text className="text-lg">💬</Text>
-              <Text className="text-sm text-foreground-tertiary">{post.comments.length}</Text>
+              <Ionicons name="chatbubble-outline" size={28} color={colors.foregroundSecondary} />
+              {post.comments.length > 0 && (
+                <Text className="text-sm text-foreground-tertiary">{post.comments.length}</Text>
+              )}
             </View>
           </View>
 

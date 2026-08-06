@@ -20,6 +20,7 @@ import AudioPlayer from '../components/AudioPlayer';
 import Avatar from '../components/Avatar';
 import StoriesTray from '../components/StoriesTray';
 import { useTheme } from '../theme/ThemeProvider';
+import { Ionicons } from '@react-native-vector-icons/ionicons';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Feed'>,
@@ -259,6 +260,7 @@ const FeedCard = memo(function FeedCard({
   onPressAuthor: (profileId: string) => void;
   onToggleLike: (post: FeedPostRow) => void;
 }) {
+  const { colors } = useTheme();
   const author = post.profiles;
   const likeCount = post.likes.length;
   const commentCount = post.comments.length;
@@ -298,12 +300,16 @@ const FeedCard = memo(function FeedCard({
 
       <View className="flex-row items-center mt-3 gap-5">
         <TouchableOpacity onPress={() => onToggleLike(post)} className="flex-row items-center gap-1.5">
-          <Text className="text-lg">{likedByMe ? '❤️' : '🤍'}</Text>
+          <Ionicons
+            name={likedByMe ? 'heart' : 'heart-outline'}
+            size={28}
+            color={likedByMe ? colors.danger : colors.foregroundSecondary}
+          />
           <Text className="text-sm text-foreground-tertiary">{likeCount}</Text>
         </TouchableOpacity>
         <View className="flex-row items-center gap-1.5">
-          <Text className="text-lg">💬</Text>
-          <Text className="text-sm text-foreground-tertiary">{commentCount}</Text>
+          <Ionicons name="chatbubble-outline" size={26} color={colors.foregroundSecondary} />
+          {commentCount > 0 && <Text className="text-sm text-foreground-tertiary">{commentCount}</Text>}
         </View>
       </View>
     </TouchableOpacity>
