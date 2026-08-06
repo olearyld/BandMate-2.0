@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, ActivityIndicator } from 'react-native';
-import { NavigationContainer, DefaultTheme, DarkTheme, Theme } from '@react-navigation/native';
+import { View, Text, Modal, Pressable, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { NavigationContainer, DefaultTheme, DarkTheme, Theme, useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator, type NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { createBottomTabNavigator, type BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
+import {
+  createBottomTabNavigator,
+  type BottomTabBarButtonProps,
+  type BottomTabNavigationProp,
+} from '@react-navigation/bottom-tabs';
 import { PlatformPressable } from '@react-navigation/elements';
 import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { useTheme } from '../theme/ThemeProvider';
@@ -88,26 +92,71 @@ function useUnreadMessageBadge(userId: string | undefined) {
   return { count, refresh };
 }
 
-// Never rendered in practice -- the Post tab's tabPress listener always
-// preventDefaults before the tab bar would focus/mount this.
+// Never rendered in practice -- PostTabButton below ignores the tab bar's
+// own onPress entirely (opens its create-menu instead), so this route is
+// never actually focused/navigated to.
 function PostPlaceholder() {
   return null;
 }
 
 // Raised circular accent button standing in for the Post tab's normal
-// icon+label, same visual language as the create-post FAB this replaced
-// (bg-accent circle, elevation.md shadow -- see CONVENTIONS.md).
-function PostTabButton({ style, children, ...rest }: BottomTabBarButtonProps) {
+// icon+label, same visual language as the original create-post FAB
+// (bg-accent circle, elevation.md shadow -- see CONVENTIONS.md). Opens a
+// small Post/Story picker (Phase 8b) rather than navigating straight to
+// CreatePost, now that story creation is consolidated here too instead of
+// living only in FeedScreen's StoriesTray "Add story" circle (kept as a
+// secondary entry point, not removed).
+function PostTabButton({ style, children, onPress, ...rest }: BottomTabBarButtonProps) {
   const { colors, elevation } = useTheme();
+  const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  function openScreen(screen: 'CreatePost' | 'CreateStory') {
+    setMenuOpen(false);
+    navigation.getParent<NativeStackNavigationProp<MainStackParamList>>()?.navigate(screen);
+  }
+
   return (
-    <PlatformPressable {...rest} style={[style, { top: -18, alignItems: 'center' }]}>
-      <View
-        className="w-14 h-14 rounded-full bg-accent items-center justify-center"
-        style={{ shadowColor: '#000', ...elevation.md }}
+    <>
+      <PlatformPressable
+        {...rest}
+        onPress={() => setMenuOpen(true)}
+        style={[style, { top: -18, alignItems: 'center' }]}
       >
-        <Ionicons name="add" size={30} color={colors.onAccent} />
-      </View>
-    </PlatformPressable>
+        <View
+          className="w-14 h-14 rounded-full bg-accent items-center justify-center"
+          style={{ shadowColor: '#000', ...elevation.md }}
+        >
+          <Ionicons name="add" size={30} color={colors.onAccent} />
+        </View>
+      </PlatformPressable>
+      <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
+        <Pressable className="flex-1 bg-black/40" onPress={() => setMenuOpen(false)}>
+          <View className="flex-1 justify-end items-center pb-28">
+            <View
+              className="bg-surface rounded-2xl overflow-hidden w-56"
+              style={{ shadowColor: '#000', ...elevation.lg }}
+            >
+              <TouchableOpacity
+                className="flex-row items-center gap-3 px-5 py-4"
+                onPress={() => openScreen('CreatePost')}
+              >
+                <Ionicons name="images-outline" size={22} color={colors.foreground} />
+                <Text className="text-base font-medium text-foreground">New Post</Text>
+              </TouchableOpacity>
+              <View className="h-px bg-border-subtle" />
+              <TouchableOpacity
+                className="flex-row items-center gap-3 px-5 py-4"
+                onPress={() => openScreen('CreateStory')}
+              >
+                <Ionicons name="time-outline" size={22} color={colors.foreground} />
+                <Text className="text-base font-medium text-foreground">New Story</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+    </>
   );
 }
 
@@ -152,12 +201,6 @@ function MainTabs() {
           title: '',
           tabBarButton: PostTabButton,
         }}
-        listeners={({ navigation }) => ({
-          tabPress: (e) => {
-            e.preventDefault();
-            navigation.getParent<NativeStackNavigationProp<MainStackParamList>>()?.navigate('CreatePost');
-          },
-        })}
       />
       <Tab.Screen
         name="MyProfile"
