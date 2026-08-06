@@ -180,13 +180,6 @@ export const elevation = {
   lg: { shadowOpacity: 0.16, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 8 },
 } as const;
 
-// A fixed (non-theme-reactive) strong red + white pairing for the
-// "TEST PROJECT" environment banner (App.tsx) — deliberately not the
-// scheme-dependent `danger` token, since this banner is meant to look
-// identically alarming regardless of light/dark mode, the same intent
-// the original hardcoded `#dc2626`/white pairing had.
-export const envBanner = { background: '#DC2626', text: '#FFFFFF' } as const;
-
 export function colorsFor(scheme: ColorScheme): ThemeColors {
   return scheme === 'dark' ? darkColors : lightColors;
 }
