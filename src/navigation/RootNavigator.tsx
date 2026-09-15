@@ -171,7 +171,11 @@ function MainTabs() {
         headerShown: false,
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.foregroundMuted,
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.borderSubtle },
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopColor: colors.borderSubtle,
+          borderTopWidth: 1,
+        },
       }}
     >
       <Tab.Screen
@@ -203,16 +207,6 @@ function MainTabs() {
         }}
       />
       <Tab.Screen
-        name="MyProfile"
-        component={MyProfileScreen}
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? 'person' : 'person-outline'} color={color} size={28} />
-          ),
-        }}
-      />
-      <Tab.Screen
         name="Messages"
         component={ConversationsListScreen}
         options={{
@@ -223,6 +217,16 @@ function MainTabs() {
           tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
         }}
         listeners={{ tabPress: () => refreshUnreadBadge() }}
+      />
+      <Tab.Screen
+        name="MyProfile"
+        component={MyProfileScreen}
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={focused ? 'person' : 'person-outline'} color={color} size={28} />
+          ),
+        }}
       />
     </Tab.Navigator>
   );

@@ -252,14 +252,19 @@ const FeedCard = memo(function FeedCard({
   onPressAuthor: (profileId: string) => void;
   onToggleLike: (post: FeedPostRow) => void;
 }) {
-  const { colors } = useTheme();
+  const { colors, elevation } = useTheme();
   const author = post.profiles;
   const likeCount = post.likes.length;
   const commentCount = post.comments.length;
   const likedByMe = !!currentUserId && post.likes.some((l) => l.user_id === currentUserId);
 
   return (
-    <TouchableOpacity activeOpacity={0.9} onPress={() => onPress(post.id)} className="mb-6 px-4">
+    <TouchableOpacity
+      activeOpacity={0.9}
+      onPress={() => onPress(post.id)}
+      className="mx-4 mb-4 p-4 bg-surface rounded-xl border border-border-subtle"
+      style={{ shadowColor: '#000', ...elevation.sm }}
+    >
       <TouchableOpacity
         activeOpacity={0.7}
         onPress={() => onPressAuthor(post.profile_id)}

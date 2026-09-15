@@ -27,7 +27,7 @@ export default function StoriesTray({
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      className="pt-2 pb-4"
+      className="pt-2 pb-4 border-b border-border-subtle"
       contentContainerClassName="px-4 gap-4"
     >
       <TouchableOpacity onPress={onPressAdd} className="items-center" style={{ width: TILE_WIDTH }}>
