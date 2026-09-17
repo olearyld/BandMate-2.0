@@ -55,6 +55,11 @@ const TAG_POOL = [
   'coversong', 'original', 'studio', 'rehearsal', 'gig', 'tour', 'newmusic',
 ];
 const IMAGE_SEEDS = Array.from({ length: 40 }, (_, i) => `https://picsum.photos/seed/bandmate-${i}/800/800`);
+// Deterministic per-user placeholder headshot (pravatar's `u` param seeds a
+// stable pseudo-random photo per string) — same "deterministic external URL,
+// no upload" convention as IMAGE_SEEDS/SAMPLE_VIDEOS/SAMPLE_AUDIO above, so a
+// given seed user gets the same face across reseeds instead of a random one.
+const avatarUrlFor = (index) => `https://i.pravatar.cc/300?u=bandmate-seed-user-${index}`;
 const SAMPLE_VIDEOS = [
   'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
   'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
@@ -257,6 +262,7 @@ async function createProfiles(admin, users, cities) {
       id: u.id,
       username: `seed_user_${u.index}`,
       display_name: faker.person.fullName(),
+      avatar_url: avatarUrlFor(u.index),
       bio: randomLongformText({ emptyChance: 0.15, shortChance: 0.3, longChance: 0.85 }),
       location_city: city ? city.city : faker.location.city(),
       location_state: city ? city.state : faker.location.state({ abbreviated: true }),

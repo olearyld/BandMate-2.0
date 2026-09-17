@@ -256,7 +256,7 @@ function ConnectionRow({
           className="mr-3"
         />
         <View className="flex-1">
-          <Text className="text-base font-semibold text-foreground" numberOfLines={1}>
+          <Text className="text-base font-bold text-foreground" numberOfLines={1}>
             {otherProfile.display_name ?? otherProfile.username}
           </Text>
           <Text className="text-xs text-foreground-muted">@{otherProfile.username}</Text>

@@ -39,13 +39,32 @@ export default function ThreadScreen({ route, navigation }: Props) {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
 
+  // Every screen in this app that shows a person (Feed, Discover, Connections,
+  // comments, the conversation list) leads with their avatar — the thread
+  // header was the one place that fell back to name-only text.
+  const setHeaderFor = useCallback(
+    (profile: ProfileSummary) => {
+      navigation.setOptions({
+        headerTitle: () => (
+          <View className="flex-row items-center gap-2">
+            <Avatar uri={profile.avatar_url} name={profile.display_name ?? profile.username} size="sm" />
+            <Text className="text-base font-semibold text-foreground" numberOfLines={1}>
+              {profile.display_name ?? profile.username}
+            </Text>
+          </View>
+        ),
+      });
+    },
+    [navigation]
+  );
+
   // Fetch the other party's profile only if the navigating screen didn't
   // already have it to hand (e.g. a future deep link) — every current call
   // site (ConversationsListScreen, ConnectionsScreen, PublicProfileScreen)
   // passes it, so this is a fallback, not the common path.
   useEffect(() => {
     if (otherProfile) {
-      navigation.setOptions({ title: otherProfile.display_name ?? otherProfile.username });
+      setHeaderFor(otherProfile);
       return;
     }
     supabase
@@ -56,10 +75,10 @@ export default function ThreadScreen({ route, navigation }: Props) {
       .then(({ data }) => {
         if (data) {
           setOtherProfile(data);
-          navigation.setOptions({ title: data.display_name ?? data.username });
+          setHeaderFor(data);
         }
       });
-  }, [otherProfile, otherUserId, navigation]);
+  }, [otherProfile, otherUserId, setHeaderFor]);
 
   const loadInitial = useCallback(async () => {
     const page = await getThread(otherUserId, { limit: PAGE_SIZE });

@@ -63,7 +63,7 @@ export default function ProfileBody({
           size="xl"
           className="mb-3"
         />
-        <Text className="text-xl font-bold text-foreground">
+        <Text className="text-2xl font-bold text-foreground">
           {profile.display_name ?? profile.username}
         </Text>
         <Text className="text-sm text-foreground-tertiary">@{profile.username}</Text>

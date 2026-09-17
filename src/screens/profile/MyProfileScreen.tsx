@@ -350,7 +350,7 @@ function EditProfileForm({
     <View className="flex-1 bg-background">
       <ScrollView contentContainerClassName="px-6 py-10 pb-32">
         <View className="flex-row items-center justify-between mb-6">
-          <Text className="text-2xl font-bold text-foreground">Edit profile</Text>
+          <Text className="text-3xl font-bold text-foreground">Edit profile</Text>
           <TouchableOpacity onPress={onCancel}>
             <Text className="text-foreground-tertiary">Cancel</Text>
           </TouchableOpacity>
@@ -544,7 +544,7 @@ function ManageHighlightsPanel({
     <View className="flex-1 bg-background">
       <ScrollView contentContainerClassName="px-6 py-10 pb-32">
         <View className="flex-row items-center justify-between mb-6">
-          <Text className="text-2xl font-bold text-foreground">Manage highlights</Text>
+          <Text className="text-3xl font-bold text-foreground">Manage highlights</Text>
           <TouchableOpacity onPress={onCancel}>
             <Text className="text-foreground-tertiary">Cancel</Text>
           </TouchableOpacity>

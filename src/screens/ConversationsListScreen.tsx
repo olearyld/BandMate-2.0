@@ -74,7 +74,7 @@ export default function ConversationsListScreen({ navigation }: Props) {
   return (
     <View className="flex-1 bg-background">
       <View className="pt-12 px-4 pb-2">
-        <Text className="text-2xl font-bold text-foreground">Messages</Text>
+        <Text className="text-3xl font-bold text-foreground">Messages</Text>
       </View>
       <FlatList
         data={conversations}
@@ -119,7 +119,7 @@ const ConversationRow = memo(function ConversationRow({
         className="mr-3"
       />
       <View className="flex-1 mr-2">
-        <Text className="text-base font-semibold text-foreground" numberOfLines={1}>
+        <Text className="text-base font-bold text-foreground" numberOfLines={1}>
           {item.otherProfile.display_name ?? item.otherProfile.username}
         </Text>
         <Text

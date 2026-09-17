@@ -134,7 +134,7 @@ export default function PostDetailScreen({ route, navigation }: Props) {
         >
           <Avatar uri={author.avatar_url} name={author.display_name ?? author.username} className="mr-3" />
           <View>
-            <Text className="text-sm font-semibold text-foreground">
+            <Text className="text-base font-bold text-foreground">
               {author.display_name ?? author.username}
             </Text>
             <Text className="text-xs text-foreground-muted">
@@ -154,7 +154,7 @@ export default function PostDetailScreen({ route, navigation }: Props) {
         )}
 
         <View className="px-4">
-          {post.caption && <Text className="text-base text-foreground mt-4">{post.caption}</Text>}
+          {post.caption && <Text className="text-base font-medium text-foreground mt-4">{post.caption}</Text>}
 
           {post.tags && post.tags.length > 0 && (
             <View className="flex-row flex-wrap gap-1.5 mt-3">
@@ -199,7 +199,7 @@ export default function PostDetailScreen({ route, navigation }: Props) {
                 />
                 <View className="flex-1">
                   <Text className="text-sm text-foreground">
-                    <Text className="font-semibold">{commentAuthor.display_name ?? commentAuthor.username}</Text>
+                    <Text className="font-bold">{commentAuthor.display_name ?? commentAuthor.username}</Text>
                     {'  '}
                     {c.body}
                   </Text>

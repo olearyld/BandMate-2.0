@@ -4,6 +4,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEventListener } from 'expo';
 import type { MainStackParamList } from '../navigation/types';
+import Avatar from '../components/Avatar';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'StoryViewer'>;
 
@@ -86,6 +87,12 @@ export default function StoryViewerScreen({ route, navigation }: Props) {
       </View>
 
       <View className="absolute top-8 left-4 right-4 flex-row items-center z-10">
+        <Avatar
+          uri={group.profile.avatar_url}
+          name={group.profile.display_name ?? group.profile.username}
+          size="sm"
+          className="mr-2"
+        />
         <Text className="text-white font-semibold flex-1" numberOfLines={1}>
           {group.profile.display_name ?? group.profile.username}
         </Text>

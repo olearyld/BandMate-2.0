@@ -1,4 +1,4 @@
-import { memo, useCallback, useRef, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -28,6 +28,18 @@ type Props = CompositeScreenProps<
 >;
 
 const PAGE_SIZE = 10;
+
+// Purely cosmetic mock data — no `concerts` table, no backend, no
+// persistence. Interleaved into the Feed's rendered list only, to see how
+// concert promos + RSVP would look between posts. Not wired to anything real.
+const MOCK_CONCERTS = [
+  { id: 'mock-concert-1', title: 'Open Mic Night', venue: 'The Blue Note', date: 'Fri, Oct 3', time: '8:00 PM' },
+  { id: 'mock-concert-2', title: 'Acoustic Sessions', venue: 'Riverside Park', date: 'Sat, Oct 11', time: '6:30 PM' },
+  { id: 'mock-concert-3', title: 'Battle of the Bands', venue: 'The Fillmore', date: 'Fri, Oct 24', time: '7:00 PM' },
+] as const;
+type MockConcert = (typeof MOCK_CONCERTS)[number];
+type FeedListItem = { kind: 'post'; post: FeedPostRow } | { kind: 'concert'; concert: MockConcert };
+const CONCERT_EVERY_N_POSTS = 3;
 
 const FEED_SELECT = `
   id, profile_id, media_url, media_type, caption, tags, thumbnail_url, status, created_at,
@@ -175,6 +187,22 @@ export default function FeedScreen({ navigation }: Props) {
     [navigation]
   );
 
+  // Cosmetic only (see MOCK_CONCERTS above) — a display-only derived list,
+  // not app state, so it's recomputed from `posts` rather than stored.
+  const feedItems = useMemo((): FeedListItem[] => {
+    const items: FeedListItem[] = [];
+    posts.forEach((post, index) => {
+      items.push({ kind: 'post', post });
+      if ((index + 1) % CONCERT_EVERY_N_POSTS === 0) {
+        items.push({
+          kind: 'concert',
+          concert: MOCK_CONCERTS[Math.floor(index / CONCERT_EVERY_N_POSTS) % MOCK_CONCERTS.length],
+        });
+      }
+    });
+    return items;
+  }, [posts]);
+
   return (
     <View className="flex-1 bg-background">
       {loading ? (
@@ -188,8 +216,8 @@ export default function FeedScreen({ navigation }: Props) {
       ) : (
         <FlatList
           className="flex-1"
-          data={posts}
-          keyExtractor={(item) => item.id}
+          data={feedItems}
+          keyExtractor={(item) => (item.kind === 'post' ? item.post.id : item.concert.id)}
           contentContainerStyle={{ paddingVertical: 12 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} />}
           onEndReachedThreshold={0.5}
@@ -204,7 +232,7 @@ export default function FeedScreen({ navigation }: Props) {
           }
           ListEmptyComponent={
             <View className="items-center justify-center px-6 py-24">
-              <Text className="text-2xl font-bold text-foreground mb-2">Feed</Text>
+              <Text className="text-3xl font-bold text-foreground mb-2">Feed</Text>
               <Text className="text-base text-foreground-tertiary text-center">
                 No posts yet — be the first to share something.
               </Text>
@@ -217,15 +245,19 @@ export default function FeedScreen({ navigation }: Props) {
               </View>
             ) : null
           }
-          renderItem={({ item }) => (
-            <FeedCard
-              post={item}
-              currentUserId={currentUserId}
-              onPress={handlePressPost}
-              onPressAuthor={handlePressAuthor}
-              onToggleLike={handleToggleLike}
-            />
-          )}
+          renderItem={({ item }) =>
+            item.kind === 'post' ? (
+              <FeedCard
+                post={item.post}
+                currentUserId={currentUserId}
+                onPress={handlePressPost}
+                onPressAuthor={handlePressAuthor}
+                onToggleLike={handleToggleLike}
+              />
+            ) : (
+              <ConcertCard concert={item.concert} />
+            )
+          }
         />
       )}
     </View>
@@ -262,30 +294,91 @@ const FeedCard = memo(function FeedCard({
     <TouchableOpacity
       activeOpacity={0.9}
       onPress={() => onPress(post.id)}
-      className="mx-4 mb-4 p-4 bg-surface rounded-xl border border-border-subtle"
+      className="mx-4 mb-6 p-5 bg-surface rounded-xl border border-border-subtle"
       style={{ shadowColor: '#000', ...elevation.sm }}
     >
-      <TouchableOpacity
-        activeOpacity={0.7}
-        onPress={() => onPressAuthor(post.profile_id)}
-        className="flex-row items-center mb-3"
-      >
-        <Avatar uri={author.avatar_url} name={author.display_name ?? author.username} className="mr-3" />
-        <View>
-          <Text className="text-sm font-semibold text-foreground">
-            {author.display_name ?? author.username}
-          </Text>
-          <Text className="text-xs text-foreground-muted">
-            {new Date(post.created_at).toLocaleDateString()}
-          </Text>
+      {post.media_type !== 'video' && (
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() => onPressAuthor(post.profile_id)}
+          className="flex-row items-center mb-3"
+        >
+          <Avatar uri={author.avatar_url} name={author.display_name ?? author.username} className="mr-3" />
+          <View>
+            <Text className="text-base font-bold text-foreground">
+              {author.display_name ?? author.username}
+            </Text>
+            <Text className="text-xs text-foreground-muted">
+              {new Date(post.created_at).toLocaleDateString()}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {post.media_type === 'video' ? (
+        <View className="relative">
+          <FeedMedia post={post} />
+          {/* TikTok-style overlay — video only, an experiment to compare against
+              the below-media layout every other media type still uses. Dark
+              translucent panels/chips (not a border/shadow treatment) so
+              everything stays legible over any video frame, light or dark
+              theme alike. Left: profile + caption + tags. Right: like/comment. */}
+          <View className="absolute left-3 right-3 bottom-3 flex-row items-end justify-between">
+            <View className="flex-1 mr-3 bg-black/30 rounded-lg px-3 py-2">
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => onPressAuthor(post.profile_id)}
+                className="flex-row items-center mb-1.5"
+              >
+                <Avatar uri={author.avatar_url} name={author.display_name ?? author.username} size="sm" className="mr-2" />
+                <Text className="text-white text-sm font-bold flex-1" numberOfLines={1}>
+                  {author.display_name ?? author.username}
+                </Text>
+              </TouchableOpacity>
+              {post.caption && (
+                <Text className="text-white text-sm font-medium mb-1.5" numberOfLines={2}>
+                  {post.caption}
+                </Text>
+              )}
+              {post.tags && post.tags.length > 0 && (
+                <View className="flex-row flex-wrap gap-1.5">
+                  {post.tags.map((tag) => (
+                    <Text key={tag} className="text-white text-xs font-semibold">
+                      #{tag}
+                    </Text>
+                  ))}
+                </View>
+              )}
+            </View>
+            <View className="items-center gap-4">
+              <TouchableOpacity onPress={() => onToggleLike(post)} className="items-center" hitSlop={8}>
+                <View className="w-11 h-11 rounded-full bg-black/40 items-center justify-center">
+                  <Ionicons
+                    name={likedByMe ? 'heart' : 'heart-outline'}
+                    size={26}
+                    color={likedByMe ? colors.danger : '#FFFFFF'}
+                  />
+                </View>
+                <Text className="text-white text-xs font-bold mt-1">{likeCount}</Text>
+              </TouchableOpacity>
+              <View className="items-center">
+                <View className="w-11 h-11 rounded-full bg-black/40 items-center justify-center">
+                  <Ionicons name="chatbubble-outline" size={24} color="#FFFFFF" />
+                </View>
+                {commentCount > 0 && <Text className="text-white text-xs font-bold mt-1">{commentCount}</Text>}
+              </View>
+            </View>
+          </View>
         </View>
-      </TouchableOpacity>
+      ) : (
+        <FeedMedia post={post} />
+      )}
 
-      <FeedMedia post={post} />
+      {post.media_type !== 'video' && post.caption && (
+        <Text className="text-base font-medium text-foreground mt-3">{post.caption}</Text>
+      )}
 
-      {post.caption && <Text className="text-base text-foreground mt-3">{post.caption}</Text>}
-
-      {post.tags && post.tags.length > 0 && (
+      {post.media_type !== 'video' && post.tags && post.tags.length > 0 && (
         <View className="flex-row flex-wrap gap-1.5 mt-2">
           {post.tags.map((tag) => (
             <View key={tag} className="px-2.5 py-1 rounded-full bg-accent-subtle border border-accent-line">
@@ -295,20 +388,22 @@ const FeedCard = memo(function FeedCard({
         </View>
       )}
 
-      <View className="flex-row items-center mt-3 gap-5">
-        <TouchableOpacity onPress={() => onToggleLike(post)} className="flex-row items-center gap-1.5">
-          <Ionicons
-            name={likedByMe ? 'heart' : 'heart-outline'}
-            size={28}
-            color={likedByMe ? colors.danger : colors.foregroundSecondary}
-          />
-          <Text className="text-sm text-foreground-tertiary">{likeCount}</Text>
-        </TouchableOpacity>
-        <View className="flex-row items-center gap-1.5">
-          <Ionicons name="chatbubble-outline" size={26} color={colors.foregroundSecondary} />
-          {commentCount > 0 && <Text className="text-sm text-foreground-tertiary">{commentCount}</Text>}
+      {post.media_type !== 'video' && (
+        <View className="flex-row items-center mt-3 gap-5">
+          <TouchableOpacity onPress={() => onToggleLike(post)} className="flex-row items-center gap-1.5">
+            <Ionicons
+              name={likedByMe ? 'heart' : 'heart-outline'}
+              size={28}
+              color={likedByMe ? colors.danger : colors.foregroundSecondary}
+            />
+            <Text className="text-sm text-foreground-tertiary">{likeCount}</Text>
+          </TouchableOpacity>
+          <View className="flex-row items-center gap-1.5">
+            <Ionicons name="chatbubble-outline" size={26} color={colors.foregroundSecondary} />
+            {commentCount > 0 && <Text className="text-sm text-foreground-tertiary">{commentCount}</Text>}
+          </View>
         </View>
-      </View>
+      )}
     </TouchableOpacity>
   );
 });
@@ -318,7 +413,7 @@ function FeedMedia({ post }: { post: FeedPostRow }) {
     return (
       <Image
         source={{ uri: post.media_url }}
-        className="w-full h-72 rounded-xl bg-surface-alt"
+        className="w-full h-80 rounded-xl bg-surface-alt"
         resizeMode="cover"
       />
     );
@@ -328,7 +423,7 @@ function FeedMedia({ post }: { post: FeedPostRow }) {
     // Show a lightweight thumbnail in the feed; full playback happens on Post Detail
     // (matching how PublicProfile plays video), so many cards never load a video player at once.
     return (
-      <View className="w-full h-72 rounded-xl bg-gray-900 items-center justify-center overflow-hidden">
+      <View className="w-full h-80 rounded-xl bg-gray-900 items-center justify-center overflow-hidden">
         {post.thumbnail_url ? (
           <Image source={{ uri: post.thumbnail_url }} className="w-full h-full absolute" resizeMode="cover" />
         ) : null}
@@ -340,4 +435,34 @@ function FeedMedia({ post }: { post: FeedPostRow }) {
   }
 
   return <AudioPlayer uri={post.media_url} />;
+}
+
+// Purely cosmetic — see MOCK_CONCERTS above. Not memoized: only ever a
+// handful render at once (one per CONCERT_EVERY_N_POSTS posts), and RSVP
+// state is local/component-scoped, not app state to protect from re-renders.
+function ConcertCard({ concert }: { concert: MockConcert }) {
+  const { colors } = useTheme();
+  const [going, setGoing] = useState(false);
+
+  return (
+    <View className="mx-4 mb-6 p-5 bg-accent-subtle rounded-xl border border-accent-line">
+      <View className="flex-row items-center mb-2">
+        <Ionicons name="calendar" size={18} color={colors.accent} />
+        <Text className="text-accent text-xs font-bold uppercase tracking-wide ml-2">Upcoming show</Text>
+      </View>
+      <Text className="text-lg font-bold text-foreground mb-1">{concert.title}</Text>
+      <Text className="text-sm text-foreground-secondary mb-4">
+        {concert.venue} · {concert.date} · {concert.time}
+      </Text>
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={() => setGoing((g) => !g)}
+        className={`self-start px-4 py-2 rounded-full ${going ? 'bg-success-subtle border border-success-line' : 'bg-accent'}`}
+      >
+        <Text className={`text-sm font-bold ${going ? 'text-success' : 'text-on-accent'}`}>
+          {going ? "You're going ✓" : 'RSVP'}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
 }

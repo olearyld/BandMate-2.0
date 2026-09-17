@@ -210,7 +210,7 @@ export default function DiscoverScreen({ navigation }: Props) {
           onEndReached={handleLoadMore}
           ListHeaderComponent={
             <View className="px-4 pt-12 pb-2">
-              <Text className="text-2xl font-bold text-foreground mb-4">Discover</Text>
+              <Text className="text-3xl font-bold text-foreground mb-4">Discover</Text>
 
               <Text className="text-sm font-semibold text-foreground-secondary mb-2">Distance</Text>
               <View className="flex-row flex-wrap gap-2 mb-1">
@@ -336,7 +336,7 @@ const DiscoverRow = memo(function DiscoverRow({
       >
         <Avatar uri={row.avatar_url} name={row.display_name ?? row.username} size="lg" className="mr-3" />
         <View className="flex-1">
-          <Text className="text-base font-semibold text-foreground" numberOfLines={1}>
+          <Text className="text-base font-bold text-foreground" numberOfLines={1}>
             {row.display_name ?? row.username}
           </Text>
           {(row.location_city || row.location_state || row.distance_miles != null) && (
