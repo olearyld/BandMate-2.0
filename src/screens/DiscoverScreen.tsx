@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import Slider from '@react-native-community/slider';
 import { useFocusEffect, type CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -12,6 +13,7 @@ import { sendRequest, listIncomingRequests, listSentRequests, listAcceptedConnec
 import Avatar from '../components/Avatar';
 import ChipToggleGroup, { toggleInSet } from '../components/ChipToggleGroup';
 import { useTheme } from '../theme/ThemeProvider';
+import { Ionicons } from '@react-native-vector-icons/ionicons';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Discover'>,
@@ -19,7 +21,47 @@ type Props = CompositeScreenProps<
 >;
 
 const PAGE_SIZE = 20;
-const RADIUS_OPTIONS = [10, 25, 50, 100];
+// Distance's old fixed chip set (10/25/50/100 mi) is gone, replaced by a
+// continuous slider — same range the chips used to cover end-to-end (5 to
+// 100, the top end an explicit user choice to match the old max rather than
+// go wider), not a new value space. `discover_profiles` already accepts any
+// numeric radius_miles, not just those four presets, so this needed no
+// backend change at all.
+const DISTANCE_SLIDER_MIN = 5;
+const DISTANCE_SLIDER_MAX = 100;
+const DISTANCE_SLIDER_DEFAULT = 25;
+// Collapse cap for Instruments/Genres only — an approximation of "one
+// line", not an exact measurement (chip width isn't knowable without
+// runtime layout measurement, so this is a rough chars-per-label estimate
+// instead).
+const FILTER_COLLAPSE_COUNT = 4;
+
+// Cosmetic-only, not linked to any profile's real `bio` column — see
+// CONVENTIONS.md's Known tech debt for why (discover_profiles' RPC doesn't
+// select bio at all, and wiring that in would mean a migration on both
+// Supabase projects, out of scope for this aesthetics pass per the user's
+// own explicit fallback instruction). Deterministic per profile id (not
+// random per render) so a given row always shows the same fake bio.
+const FAKE_BIOS = [
+  'Weekend warrior looking to jam and maybe start something real.',
+  "Been playing since I was a kid — always down for a good cover session.",
+  'Songwriter first, instrumentalist second. Let\'s write something together.',
+  'Studio rat by day, stage performer by night.',
+  'New to the scene and love learning from other musicians.',
+  'Touring between projects right now — open to collabs.',
+  'Self-taught and still figuring it out, one riff at a time.',
+  'Looking for a band that takes the music seriously but not themselves.',
+  'Mostly play for fun, but always open to something bigger.',
+  'Into tight arrangements and long rehearsals. Let\'s make something good.',
+] as const;
+
+function fakeBioFor(profileId: string): string {
+  let hash = 0;
+  for (let i = 0; i < profileId.length; i++) {
+    hash = (hash * 31 + profileId.charCodeAt(i)) | 0;
+  }
+  return FAKE_BIOS[Math.abs(hash) % FAKE_BIOS.length];
+}
 
 export default function DiscoverScreen({ navigation }: Props) {
   const { session } = useAppContext();
@@ -31,6 +73,14 @@ export default function DiscoverScreen({ navigation }: Props) {
   const [selectedInstruments, setSelectedInstruments] = useState<Set<number>>(new Set());
   const [selectedGenres, setSelectedGenres] = useState<Set<number>>(new Set());
   const [radiusMiles, setRadiusMiles] = useState<number | null>(null);
+  // "Any distance" checkbox — true by default, matching radiusMiles's own
+  // null default. sliderDraft is separate from radiusMiles: it tracks the
+  // thumb's live position while dragging (for the "N mi" label), but only
+  // gets committed into radiusMiles (which actually drives the results
+  // fetch, via the effect below) onSlidingComplete — dragging itself never
+  // fires a new query, per the user's own explicit choice.
+  const [distanceAny, setDistanceAny] = useState(true);
+  const [sliderDraft, setSliderDraft] = useState(DISTANCE_SLIDER_DEFAULT);
 
   // Whether the caller has a matched_city_id at all — gates the radius
   // control (disabled, not hidden, when false). Loaded once per screen
@@ -46,18 +96,45 @@ export default function DiscoverScreen({ navigation }: Props) {
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [instrumentsExpanded, setInstrumentsExpanded] = useState(false);
+  const [genresExpanded, setGenresExpanded] = useState(false);
 
   const toggleInstrument = toggleInSet(setSelectedInstruments);
   const toggleGenre = toggleInSet(setSelectedGenres);
 
   useEffect(() => {
     async function loadRef() {
-      const [{ data: instr }, { data: gen }] = await Promise.all([
+      // profile_instruments/profile_genres are authenticated-readable for
+      // every row (not owner-scoped — see their RLS policies), so this is a
+      // plain unfiltered count query, not a new access path. Used only to
+      // rank the filter chips by popularity; the counts themselves aren't
+      // displayed anywhere.
+      const [{ data: instr }, { data: gen }, { data: piRows }, { data: pgRows }] = await Promise.all([
         supabase.from('instruments').select('*').order('name'),
         supabase.from('genres').select('*').order('name'),
+        supabase.from('profile_instruments').select('instrument_id'),
+        supabase.from('profile_genres').select('genre_id'),
       ]);
-      setAllInstruments(instr ?? []);
-      setAllGenres(gen ?? []);
+
+      const instrumentCounts = new Map<number, number>();
+      (piRows ?? []).forEach((r) => instrumentCounts.set(r.instrument_id, (instrumentCounts.get(r.instrument_id) ?? 0) + 1));
+      const genreCounts = new Map<number, number>();
+      (pgRows ?? []).forEach((r) => genreCounts.set(r.genre_id, (genreCounts.get(r.genre_id) ?? 0) + 1));
+
+      // Most-popular-first, alphabetical as the tiebreaker (including the
+      // common "0 for both" case, so unpopular chips don't end up in a
+      // meaningless order).
+      const sortedInstruments = [...(instr ?? [])].sort((a, b) => {
+        const diff = (instrumentCounts.get(b.id) ?? 0) - (instrumentCounts.get(a.id) ?? 0);
+        return diff !== 0 ? diff : a.name.localeCompare(b.name);
+      });
+      const sortedGenres = [...(gen ?? [])].sort((a, b) => {
+        const diff = (genreCounts.get(b.id) ?? 0) - (genreCounts.get(a.id) ?? 0);
+        return diff !== 0 ? diff : a.name.localeCompare(b.name);
+      });
+
+      setAllInstruments(sortedInstruments);
+      setAllGenres(sortedGenres);
     }
     loadRef();
   }, []);
@@ -210,69 +287,105 @@ export default function DiscoverScreen({ navigation }: Props) {
           onEndReached={handleLoadMore}
           ListHeaderComponent={
             <View className="px-4 pt-12 pb-2">
-              <Text className="text-3xl font-bold text-foreground mb-4">Discover</Text>
+              <Text className="text-3xl font-bold text-foreground mb-3">Discover</Text>
 
-              <Text className="text-sm font-semibold text-foreground-secondary mb-2">Distance</Text>
-              <View className="flex-row flex-wrap gap-2 mb-1">
-                {[{ label: 'Any distance', value: null as number | null }, ...RADIUS_OPTIONS.map((mi) => ({ label: `${mi} mi`, value: mi }))].map(
-                  (opt) => {
-                    const isSel = radiusMiles === opt.value;
-                    return (
-                      <TouchableOpacity
-                        key={opt.label}
-                        disabled={radiusDisabled}
-                        onPress={() => setRadiusMiles(opt.value)}
-                        className={`px-4 py-2 rounded-full border ${
-                          radiusDisabled
-                            ? 'border-border-subtle'
-                            : isSel
-                              ? 'bg-accent border-accent'
-                              : 'border-border'
-                        }`}
-                      >
-                        <Text
-                          className={`text-sm font-medium ${
-                            radiusDisabled ? 'text-foreground-muted' : isSel ? 'text-on-accent' : 'text-foreground-secondary'
-                          }`}
-                        >
-                          {opt.label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  }
-                )}
+              <View className="flex-row items-center justify-between mb-1">
+                <Text className="text-sm font-semibold text-foreground-secondary">Distance</Text>
+                <TouchableOpacity
+                  className="flex-row items-center gap-1.5"
+                  disabled={radiusDisabled}
+                  onPress={() => {
+                    const nextAny = !distanceAny;
+                    setDistanceAny(nextAny);
+                    setRadiusMiles(nextAny ? null : sliderDraft);
+                  }}
+                >
+                  <View
+                    className={`w-4 h-4 rounded border items-center justify-center ${
+                      radiusDisabled ? 'border-border-subtle' : distanceAny ? 'bg-accent border-accent' : 'border-border'
+                    }`}
+                  >
+                    {distanceAny && <Ionicons name="checkmark" size={12} color={colors.onAccent} />}
+                  </View>
+                  <Text
+                    className={`text-xs font-medium ${radiusDisabled ? 'text-foreground-muted' : 'text-foreground-secondary'}`}
+                  >
+                    Any distance
+                  </Text>
+                </TouchableOpacity>
               </View>
+              <Slider
+                disabled={radiusDisabled || distanceAny}
+                minimumValue={DISTANCE_SLIDER_MIN}
+                maximumValue={DISTANCE_SLIDER_MAX}
+                step={1}
+                value={sliderDraft}
+                onValueChange={setSliderDraft}
+                onSlidingComplete={(value) => {
+                  setSliderDraft(value);
+                  if (!distanceAny) setRadiusMiles(value);
+                }}
+                minimumTrackTintColor={colors.accent}
+                maximumTrackTintColor={colors.borderSubtle}
+                thumbTintColor={colors.accent}
+                style={{ opacity: radiusDisabled || distanceAny ? 0.5 : 1 }}
+              />
+              {!distanceAny && (
+                <Text className="text-xs text-foreground-muted -mt-1">{Math.round(sliderDraft)} mi</Text>
+              )}
               {radiusDisabled && (
-                <Text className="text-xs text-foreground-muted mb-3">
+                <Text className="text-xs text-foreground-muted mt-1">
                   Set your city in Edit Profile to enable distance search.
                 </Text>
               )}
 
-              <Text className="text-sm font-semibold text-foreground-secondary mt-3 mb-2">Instruments</Text>
+              <View className="flex-row items-center justify-between mt-2 mb-1">
+                <Text className="text-sm font-semibold text-foreground-secondary">Instruments</Text>
+                {allInstruments.length > FILTER_COLLAPSE_COUNT && (
+                  <TouchableOpacity onPress={() => setInstrumentsExpanded((e) => !e)}>
+                    <Text className="text-accent text-xs font-semibold">
+                      {instrumentsExpanded ? 'Collapse' : 'Expand'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
               <ChipToggleGroup
                 items={allInstruments}
                 getKey={(inst) => inst.id}
                 getLabel={(inst) => inst.name}
                 isSelected={(inst) => selectedInstruments.has(inst.id)}
                 onToggle={(inst) => toggleInstrument(inst.id)}
+                maxVisible={FILTER_COLLAPSE_COUNT}
+                expanded={instrumentsExpanded}
               />
 
-              <Text className="text-sm font-semibold text-foreground-secondary mt-4 mb-2">Genres</Text>
+              <View className="flex-row items-center justify-between mt-2 mb-1">
+                <Text className="text-sm font-semibold text-foreground-secondary">Genres</Text>
+                {allGenres.length > FILTER_COLLAPSE_COUNT && (
+                  <TouchableOpacity onPress={() => setGenresExpanded((e) => !e)}>
+                    <Text className="text-accent text-xs font-semibold">
+                      {genresExpanded ? 'Collapse' : 'Expand'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
               <ChipToggleGroup
                 items={allGenres}
                 getKey={(genre) => genre.id}
                 getLabel={(genre) => genre.name}
                 isSelected={(genre) => selectedGenres.has(genre.id)}
                 onToggle={(genre) => toggleGenre(genre.id)}
+                maxVisible={FILTER_COLLAPSE_COUNT}
+                expanded={genresExpanded}
               />
 
               {error && (
-                <View className="bg-danger-subtle border border-danger-line rounded-lg px-4 py-3 mt-4">
+                <View className="bg-danger-subtle border border-danger-line rounded-lg px-4 py-3 mt-3">
                   <Text className="text-danger text-sm">{error}</Text>
                 </View>
               )}
 
-              <View className="h-px bg-surface-alt mt-4" />
+              <View className="h-px bg-surface-alt mt-3" />
             </View>
           }
           ListEmptyComponent={
@@ -345,6 +458,10 @@ const DiscoverRow = memo(function DiscoverRow({
               {row.distance_miles != null ? ` · ${Math.round(row.distance_miles)} mi` : ''}
             </Text>
           )}
+          {/* Cosmetic-only fake bio, not real profile data — see Known tech debt. */}
+          <Text className="text-sm text-foreground-secondary mt-1" numberOfLines={2}>
+            {fakeBioFor(row.id)}
+          </Text>
           {(row.instruments.length > 0 || row.genres.length > 0) && (
             <View className="flex-row flex-wrap gap-1 mt-1">
               {row.instruments.slice(0, 3).map((inst) => (
@@ -353,7 +470,7 @@ const DiscoverRow = memo(function DiscoverRow({
                 </View>
               ))}
               {row.genres.slice(0, 2).map((genre) => (
-                <View key={`g-${genre.id}`} className="px-2 py-0.5 rounded-full bg-accent-subtle border border-accent-line">
+                <View key={`g-${genre.id}`} className="px-2 py-0.5 rounded-full border border-accent">
                   <Text className="text-xs text-accent">{genre.name}</Text>
                 </View>
               ))}

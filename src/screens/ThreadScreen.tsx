@@ -209,16 +209,16 @@ export default function ThreadScreen({ route, navigation }: Props) {
         renderItem={({ item }) => {
           const isMine = item.sender_id === myUserId;
           return (
-            <View className={`flex-row mb-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
+            <View className={`flex-row mb-3 ${isMine ? 'justify-end' : 'justify-start'}`}>
               <View
-                className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
+                className={`max-w-[80%] rounded-2xl px-4 py-3 ${
                   isMine ? 'bg-accent' : 'bg-surface-alt'
                 }`}
               >
-                <Text className={isMine ? 'text-on-accent text-base' : 'text-foreground text-base'}>
+                <Text className={isMine ? 'text-on-accent text-lg' : 'text-foreground text-lg'}>
                   {item.content}
                 </Text>
-                <Text className={`text-xs mt-1 ${isMine ? 'text-on-accent/70' : 'text-foreground-muted'}`}>
+                <Text className={`text-xs mt-1.5 ${isMine ? 'text-on-accent/70' : 'text-foreground-muted'}`}>
                   {new Date(item.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                 </Text>
               </View>

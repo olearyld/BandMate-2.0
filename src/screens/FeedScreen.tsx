@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { useFocusEffect, type CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -14,8 +15,9 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { supabase } from '../lib/supabase';
 import { useAppContext } from '../navigation/AppContext';
 import { listActiveStoryGroups } from '../lib/stories';
+import { sendRequest, listIncomingRequests, listSentRequests, listAcceptedConnections } from '../lib/connections';
 import type { MainTabParamList, MainStackParamList } from '../navigation/types';
-import type { FeedPostRow, StoryGroup } from '../lib/types';
+import type { ConnectionStatusValue, FeedPostRow, StoryGroup } from '../lib/types';
 import AudioPlayer from '../components/AudioPlayer';
 import Avatar from '../components/Avatar';
 import StoriesTray from '../components/StoriesTray';
@@ -45,7 +47,7 @@ const FEED_SELECT = `
   id, profile_id, media_url, media_type, caption, tags, thumbnail_url, status, created_at,
   profiles!media_posts_profile_id_fkey ( username, display_name, avatar_url ),
   likes ( user_id ),
-  comments ( id )
+  comments ( id, body, profiles ( username, display_name ) )
 `;
 
 export default function FeedScreen({ navigation }: Props) {
@@ -60,10 +62,33 @@ export default function FeedScreen({ navigation }: Props) {
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [storyGroups, setStoryGroups] = useState<StoryGroup[]>([]);
+  // Connection status per post author, same three-list-merge pattern
+  // DiscoverScreen's own loadConnectionStatuses already uses — so a
+  // "Connect" button can show on a post from someone not yet connected,
+  // same as Discover's rows.
+  const [statusMap, setStatusMap] = useState<Record<string, ConnectionStatusValue>>({});
+  const [connectingId, setConnectingId] = useState<string | null>(null);
 
   const refreshStoryGroups = useCallback(() => {
     listActiveStoryGroups().then(setStoryGroups).catch(() => {});
   }, []);
+
+  const refreshConnectionStatuses = useCallback(() => {
+    if (!currentUserId) return;
+    Promise.all([
+      listIncomingRequests(currentUserId),
+      listSentRequests(currentUserId),
+      listAcceptedConnections(currentUserId),
+    ])
+      .then(([incoming, sent, accepted]) => {
+        const map: Record<string, ConnectionStatusValue> = {};
+        incoming.forEach((item) => { map[item.otherProfile.id] = 'pending_received'; });
+        sent.forEach((item) => { map[item.otherProfile.id] = 'pending_sent'; });
+        accepted.forEach((item) => { map[item.otherProfile.id] = 'accepted'; });
+        setStatusMap(map);
+      })
+      .catch(() => {});
+  }, [currentUserId]);
 
   const fetchPage = useCallback(async (page: number): Promise<FeedPostRow[]> => {
     const from = page * PAGE_SIZE;
@@ -73,6 +98,11 @@ export default function FeedScreen({ navigation }: Props) {
       .select(FEED_SELECT)
       .eq('status', 'ready')
       .order('created_at', { ascending: false })
+      // Comments oldest-first within each post, same convention
+      // PostDetailScreen already uses — the card only ever renders the
+      // first couple (see FeedCard's comment preview), so this determines
+      // which ones those are, not just display order.
+      .order('created_at', { foreignTable: 'comments', ascending: true })
       .range(from, to)
       .returns<FeedPostRow[]>();
     if (err) throw err;
@@ -101,6 +131,7 @@ export default function FeedScreen({ navigation }: Props) {
         isFirstFocus.current = false;
         loadInitial();
         refreshStoryGroups();
+        refreshConnectionStatuses();
         return;
       }
       // Silent refresh on refocus (e.g. returning from Create Post, Post Detail,
@@ -114,7 +145,8 @@ export default function FeedScreen({ navigation }: Props) {
         })
         .catch(() => {});
       refreshStoryGroups();
-    }, [loadInitial, fetchPage, refreshStoryGroups])
+      refreshConnectionStatuses();
+    }, [loadInitial, fetchPage, refreshStoryGroups, refreshConnectionStatuses])
   );
 
   async function handleRefresh() {
@@ -187,6 +219,33 @@ export default function FeedScreen({ navigation }: Props) {
     [navigation]
   );
 
+  const handleConnect = useCallback(
+    async (profileId: string) => {
+      if (!currentUserId) return;
+      setConnectingId(profileId);
+      try {
+        await sendRequest(currentUserId, profileId);
+        setStatusMap((prev) => ({ ...prev, [profileId]: 'pending_sent' }));
+      } catch (e: any) {
+        Alert.alert('Could not send request', e.message ?? 'Something went wrong.');
+      } finally {
+        setConnectingId(null);
+      }
+    },
+    [currentUserId]
+  );
+
+  // Same cosmetic-only stub as PublicProfileScreen's "..." menu — see
+  // CONVENTIONS.md's Known tech debt. Kept here rather than a shared helper
+  // since it's a two-line Alert, not worth extracting for two call sites.
+  const handlePostOptions = useCallback(() => {
+    Alert.alert('Post options', undefined, [
+      { text: 'Not interested', onPress: () => {} },
+      { text: 'Block', style: 'destructive', onPress: () => {} },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }, []);
+
   // Cosmetic only (see MOCK_CONCERTS above) — a display-only derived list,
   // not app state, so it's recomputed from `posts` rather than stored.
   const feedItems = useMemo((): FeedListItem[] => {
@@ -217,7 +276,13 @@ export default function FeedScreen({ navigation }: Props) {
         <FlatList
           className="flex-1"
           data={feedItems}
-          keyExtractor={(item) => (item.kind === 'post' ? item.post.id : item.concert.id)}
+          // Concert cards cycle through only 3 MOCK_CONCERTS entries
+          // (CONCERT_EVERY_N_POSTS), so item.concert.id repeats once the
+          // feed has loaded enough posts to wrap around — the list index
+          // (unique per position, unlike the concert's own id) disambiguates
+          // those repeats. Post ids are already globally unique, so index
+          // isn't needed there.
+          keyExtractor={(item, index) => (item.kind === 'post' ? item.post.id : `${item.concert.id}-${index}`)}
           contentContainerStyle={{ paddingVertical: 12 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} />}
           onEndReachedThreshold={0.5}
@@ -250,9 +315,13 @@ export default function FeedScreen({ navigation }: Props) {
               <FeedCard
                 post={item.post}
                 currentUserId={currentUserId}
+                connectionStatus={statusMap[item.post.profile_id] ?? 'none'}
+                connecting={connectingId === item.post.profile_id}
                 onPress={handlePressPost}
                 onPressAuthor={handlePressAuthor}
                 onToggleLike={handleToggleLike}
+                onConnect={handleConnect}
+                onPostOptions={handlePostOptions}
               />
             ) : (
               <ConcertCard concert={item.concert} />
@@ -274,134 +343,193 @@ export default function FeedScreen({ navigation }: Props) {
 const FeedCard = memo(function FeedCard({
   post,
   currentUserId,
+  connectionStatus,
+  connecting,
   onPress,
   onPressAuthor,
   onToggleLike,
+  onConnect,
+  onPostOptions,
 }: {
   post: FeedPostRow;
   currentUserId: string | undefined;
+  connectionStatus: ConnectionStatusValue;
+  connecting: boolean;
   onPress: (postId: string) => void;
   onPressAuthor: (profileId: string) => void;
   onToggleLike: (post: FeedPostRow) => void;
+  onConnect: (profileId: string) => void;
+  onPostOptions: () => void;
 }) {
   const { colors, elevation } = useTheme();
   const author = post.profiles;
   const likeCount = post.likes.length;
   const commentCount = post.comments.length;
   const likedByMe = !!currentUserId && post.likes.some((l) => l.user_id === currentUserId);
+  // Can't connect to or block/not-interested yourself — a post of your own
+  // showing up in your own feed is the normal case, not an edge case.
+  const isOwnPost = !!currentUserId && post.profile_id === currentUserId;
+  // Only video gets the full TikTok-style overlay (profile+caption+tags+
+  // like/comment on the media, top row hidden). Image and audio share the
+  // plain layout: profile above, caption above (in the same box as profile —
+  // this part carried over from the image-only correction), tags and
+  // like/comment below the media.
+  const isVideo = post.media_type === 'video';
 
   return (
     <TouchableOpacity
       activeOpacity={0.9}
       onPress={() => onPress(post.id)}
-      className="mx-4 mb-6 p-5 bg-surface rounded-xl border border-border-subtle"
+      className="mb-6 bg-surface rounded-xl border border-border-subtle overflow-hidden"
       style={{ shadowColor: '#000', ...elevation.sm }}
     >
-      {post.media_type !== 'video' && (
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={() => onPressAuthor(post.profile_id)}
-          className="flex-row items-center mb-3"
-        >
-          <Avatar uri={author.avatar_url} name={author.display_name ?? author.username} className="mr-3" />
-          <View>
-            <Text className="text-base font-bold text-foreground">
-              {author.display_name ?? author.username}
-            </Text>
-            <Text className="text-xs text-foreground-muted">
-              {new Date(post.created_at).toLocaleDateString()}
-            </Text>
-          </View>
-        </TouchableOpacity>
-      )}
-
-      {post.media_type === 'video' ? (
-        <View className="relative">
-          <FeedMedia post={post} />
-          {/* TikTok-style overlay — video only, an experiment to compare against
-              the below-media layout every other media type still uses. Dark
-              translucent panels/chips (not a border/shadow treatment) so
-              everything stays legible over any video frame, light or dark
-              theme alike. Left: profile + caption + tags. Right: like/comment. */}
-          <View className="absolute left-3 right-3 bottom-3 flex-row items-end justify-between">
-            <View className="flex-1 mr-3 bg-black/30 rounded-lg px-3 py-2">
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => onPressAuthor(post.profile_id)}
-                className="flex-row items-center mb-1.5"
-              >
-                <Avatar uri={author.avatar_url} name={author.display_name ?? author.username} size="sm" className="mr-2" />
-                <Text className="text-white text-sm font-bold flex-1" numberOfLines={1}>
+      {!isVideo && (
+        <View className="px-5 pt-5">
+          <View className="flex-row items-center justify-between mb-3">
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => onPressAuthor(post.profile_id)}
+              className="flex-row items-center flex-1 mr-2"
+            >
+              <Avatar uri={author.avatar_url} name={author.display_name ?? author.username} className="mr-3" />
+              <View>
+                <Text className="text-base font-bold text-foreground">
                   {author.display_name ?? author.username}
                 </Text>
-              </TouchableOpacity>
-              {post.caption && (
-                <Text className="text-white text-sm font-medium mb-1.5" numberOfLines={2}>
-                  {post.caption}
+                <Text className="text-xs text-foreground-muted">
+                  {new Date(post.created_at).toLocaleDateString()}
                 </Text>
-              )}
-              {post.tags && post.tags.length > 0 && (
-                <View className="flex-row flex-wrap gap-1.5">
-                  {post.tags.map((tag) => (
-                    <Text key={tag} className="text-white text-xs font-semibold">
-                      #{tag}
-                    </Text>
+              </View>
+            </TouchableOpacity>
+            {!isOwnPost && (
+              <View className="flex-row items-center gap-2">
+                {connectionStatus === 'none' &&
+                  (connecting ? (
+                    <ActivityIndicator size="small" color={colors.accent} />
+                  ) : (
+                    <TouchableOpacity onPress={() => onConnect(post.profile_id)} hitSlop={8}>
+                      <Text className="text-accent text-sm font-semibold">Connect</Text>
+                    </TouchableOpacity>
                   ))}
+                <TouchableOpacity onPress={onPostOptions} hitSlop={8}>
+                  <Ionicons name="ellipsis-horizontal" size={20} color={colors.foregroundSecondary} />
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
+          {post.caption && (
+            <Text className="text-base font-medium text-foreground mb-3">{post.caption}</Text>
+          )}
+        </View>
+      )}
+
+      {isVideo ? (
+        <View className="p-5">
+          <View className="relative">
+            <FeedMedia post={post} />
+            {/* TikTok-style overlay — video only. Dark translucent panels/chips
+                (not a border/shadow treatment) so everything stays legible over
+                any video frame, light or dark theme alike. Left: profile +
+                caption + tags. Right: like/comment. */}
+            <View className="absolute left-3 right-3 bottom-3 flex-row items-end justify-between">
+              <View className="flex-1 mr-3 bg-black/30 rounded-lg px-3 py-2">
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => onPressAuthor(post.profile_id)}
+                  className="flex-row items-center mb-1.5"
+                >
+                  <Avatar uri={author.avatar_url} name={author.display_name ?? author.username} size="sm" className="mr-2" />
+                  <Text className="text-white text-sm font-bold flex-1" numberOfLines={1}>
+                    {author.display_name ?? author.username}
+                  </Text>
+                </TouchableOpacity>
+                {post.caption && (
+                  <Text className="text-white text-sm font-medium mb-1.5" numberOfLines={2}>
+                    {post.caption}
+                  </Text>
+                )}
+              </View>
+              <View className="items-center gap-4">
+                <TouchableOpacity onPress={() => onToggleLike(post)} className="items-center" hitSlop={8}>
+                  <View className="w-11 h-11 rounded-full bg-black/40 items-center justify-center">
+                    <Ionicons
+                      name={likedByMe ? 'heart' : 'heart-outline'}
+                      size={26}
+                      color={likedByMe ? colors.danger : '#FFFFFF'}
+                    />
+                  </View>
+                  {likeCount > 0 && <Text className="text-white text-xs font-bold mt-1">{likeCount}</Text>}
+                </TouchableOpacity>
+                <View className="items-center">
+                  <View className="w-11 h-11 rounded-full bg-black/40 items-center justify-center">
+                    <Ionicons name="chatbubble-outline" size={24} color="#FFFFFF" />
+                  </View>
+                  {commentCount > 0 && <Text className="text-white text-xs font-bold mt-1">{commentCount}</Text>}
                 </View>
-              )}
-            </View>
-            <View className="items-center gap-4">
-              <TouchableOpacity onPress={() => onToggleLike(post)} className="items-center" hitSlop={8}>
-                <View className="w-11 h-11 rounded-full bg-black/40 items-center justify-center">
-                  <Ionicons
-                    name={likedByMe ? 'heart' : 'heart-outline'}
-                    size={26}
-                    color={likedByMe ? colors.danger : '#FFFFFF'}
-                  />
-                </View>
-                <Text className="text-white text-xs font-bold mt-1">{likeCount}</Text>
-              </TouchableOpacity>
-              <View className="items-center">
-                <View className="w-11 h-11 rounded-full bg-black/40 items-center justify-center">
-                  <Ionicons name="chatbubble-outline" size={24} color="#FFFFFF" />
-                </View>
-                {commentCount > 0 && <Text className="text-white text-xs font-bold mt-1">{commentCount}</Text>}
+                {/* Repost/Message — cosmetic only for now, no onPress. See Known tech debt. */}
+                <TouchableOpacity className="items-center" hitSlop={8}>
+                  <View className="w-11 h-11 rounded-full bg-black/40 items-center justify-center">
+                    <Ionicons name="repeat-outline" size={24} color="#FFFFFF" />
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity className="items-center" hitSlop={8}>
+                  <View className="w-11 h-11 rounded-full bg-black/40 items-center justify-center">
+                    <Ionicons name="paper-plane-outline" size={22} color="#FFFFFF" />
+                  </View>
+                </TouchableOpacity>
               </View>
             </View>
           </View>
         </View>
-      ) : (
+      ) : post.media_type === 'image' ? (
         <FeedMedia post={post} />
-      )}
-
-      {post.media_type !== 'video' && post.caption && (
-        <Text className="text-base font-medium text-foreground mt-3">{post.caption}</Text>
-      )}
-
-      {post.media_type !== 'video' && post.tags && post.tags.length > 0 && (
-        <View className="flex-row flex-wrap gap-1.5 mt-2">
-          {post.tags.map((tag) => (
-            <View key={tag} className="px-2.5 py-1 rounded-full bg-accent-subtle border border-accent-line">
-              <Text className="text-accent text-xs font-medium">#{tag}</Text>
-            </View>
-          ))}
+      ) : (
+        <View className="px-5">
+          <FeedMedia post={post} />
         </View>
       )}
 
-      {post.media_type !== 'video' && (
-        <View className="flex-row items-center mt-3 gap-5">
-          <TouchableOpacity onPress={() => onToggleLike(post)} className="flex-row items-center gap-1.5">
-            <Ionicons
-              name={likedByMe ? 'heart' : 'heart-outline'}
-              size={28}
-              color={likedByMe ? colors.danger : colors.foregroundSecondary}
-            />
-            <Text className="text-sm text-foreground-tertiary">{likeCount}</Text>
-          </TouchableOpacity>
-          <View className="flex-row items-center gap-1.5">
-            <Ionicons name="chatbubble-outline" size={26} color={colors.foregroundSecondary} />
-            {commentCount > 0 && <Text className="text-sm text-foreground-tertiary">{commentCount}</Text>}
+      {!isVideo && (
+        <View className="px-5 pb-5 pt-3">
+          <View className="flex-row items-center gap-5">
+            <TouchableOpacity onPress={() => onToggleLike(post)} className="flex-row items-center gap-1.5">
+              <Ionicons
+                name={likedByMe ? 'heart' : 'heart-outline'}
+                size={28}
+                color={likedByMe ? colors.danger : colors.foregroundSecondary}
+              />
+              {likeCount > 0 && <Text className="text-sm text-foreground-tertiary">{likeCount}</Text>}
+            </TouchableOpacity>
+            <View className="flex-row items-center gap-1.5">
+              <Ionicons name="chatbubble-outline" size={26} color={colors.foregroundSecondary} />
+              {commentCount > 0 && <Text className="text-sm text-foreground-tertiary">{commentCount}</Text>}
+            </View>
+            {/* Repost/Message — cosmetic only for now, no onPress. See Known tech debt. */}
+            <TouchableOpacity className="flex-row items-center gap-1.5">
+              <Ionicons name="repeat-outline" size={26} color={colors.foregroundSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity className="flex-row items-center gap-1.5">
+              <Ionicons name="paper-plane-outline" size={24} color={colors.foregroundSecondary} />
+            </TouchableOpacity>
           </View>
+
+          {/* First couple comments only (oldest-first, per the query's own
+              ordering) — video is explicitly left alone, its overlay has no
+              equivalent. Tapping the card already opens Post Detail for the
+              full thread, so no separate "view all" link is added here. */}
+          {post.comments.length > 0 && (
+            <View className="mt-3 gap-2">
+              {post.comments.slice(0, 2).map((c) => (
+                <Text key={c.id} className="text-sm text-foreground-secondary" numberOfLines={2}>
+                  <Text className="font-semibold text-foreground">
+                    {c.profiles.display_name ?? c.profiles.username}
+                  </Text>{' '}
+                  {c.body}
+                </Text>
+              ))}
+            </View>
+          )}
         </View>
       )}
     </TouchableOpacity>
@@ -410,10 +538,12 @@ const FeedCard = memo(function FeedCard({
 
 function FeedMedia({ post }: { post: FeedPostRow }) {
   if (post.media_type === 'image') {
+    // Bigger and square (no rounded-xl) — an experiment, deliberately only
+    // for images; video keeps its own h-80/rounded-xl below untouched.
     return (
       <Image
         source={{ uri: post.media_url }}
-        className="w-full h-80 rounded-xl bg-surface-alt"
+        className="w-full h-96 bg-surface-alt"
         resizeMode="cover"
       />
     );
@@ -445,12 +575,12 @@ function ConcertCard({ concert }: { concert: MockConcert }) {
   const [going, setGoing] = useState(false);
 
   return (
-    <View className="mx-4 mb-6 p-5 bg-accent-subtle rounded-xl border border-accent-line">
+    <View className="mb-6 p-5 bg-surface rounded-xl border border-accent">
       <View className="flex-row items-center mb-2">
         <Ionicons name="calendar" size={18} color={colors.accent} />
         <Text className="text-accent text-xs font-bold uppercase tracking-wide ml-2">Upcoming show</Text>
       </View>
-      <Text className="text-lg font-bold text-foreground mb-1">{concert.title}</Text>
+      <Text className="text-lg font-bold text-accent mb-1">{concert.title}</Text>
       <Text className="text-sm text-foreground-secondary mb-4">
         {concert.venue} · {concert.date} · {concert.time}
       </Text>

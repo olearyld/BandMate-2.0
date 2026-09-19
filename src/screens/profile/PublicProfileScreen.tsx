@@ -8,15 +8,40 @@ import type { MainStackParamList } from '../../navigation/types';
 import ProfileBody from '../../components/ProfileBody';
 import { acceptRequest, cancelOrDeclineOrRemove, getConnectionStatus, sendRequest } from '../../lib/connections';
 import { useTheme } from '../../theme/ThemeProvider';
+import { Ionicons } from '@react-native-vector-icons/ionicons';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'PublicProfile'>;
 
-export default function PublicProfileScreen({ route }: Props) {
+export default function PublicProfileScreen({ route, navigation }: Props) {
   const { colors } = useTheme();
   const { profileId } = route.params;
   const { session } = useAppContext();
   const viewerId = session?.user.id;
   const isOwnProfile = !!viewerId && viewerId === profileId;
+
+  // "..." overflow menu, top-right of the native header — someone-else's-
+  // profile only (you can't block/not-interested yourself). Cosmetic only
+  // for now: the menu itself is real, but neither option does anything
+  // persistent — see CONVENTIONS.md's Known tech debt.
+  useEffect(() => {
+    if (isOwnProfile) return;
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity
+          hitSlop={8}
+          onPress={() =>
+            Alert.alert('Profile options', undefined, [
+              { text: 'Not interested', onPress: () => {} },
+              { text: 'Block', style: 'destructive', onPress: () => {} },
+              { text: 'Cancel', style: 'cancel' },
+            ])
+          }
+        >
+          <Ionicons name="ellipsis-horizontal" size={22} color={colors.foreground} />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, isOwnProfile, colors.foreground]);
 
   const [profile, setProfile] = useState<FullProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);

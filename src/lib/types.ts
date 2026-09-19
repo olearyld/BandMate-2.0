@@ -217,11 +217,15 @@ export interface PostAuthor {
 }
 
 // Feed row shape. Shape matches the select query:
-// profiles(username, display_name, avatar_url), likes(user_id), comments(id)
+// profiles(username, display_name, avatar_url), likes(user_id),
+// comments(id, body, created_at, profiles(username, display_name)) — full
+// comment bodies (not just ids) since Phase 8d's comment-preview round needs
+// to render the first 1-2 on the card itself, same shape PostDetailRow's
+// comments already used.
 export interface FeedPostRow extends MediaPost {
   profiles: PostAuthor;
   likes: { user_id: string }[];
-  comments: { id: string }[];
+  comments: (Pick<Comment, 'id' | 'body'> & { profiles: Pick<PostAuthor, 'username' | 'display_name'> })[];
 }
 
 // Post detail row shape — same as FeedPostRow but with full comment rows

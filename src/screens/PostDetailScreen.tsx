@@ -159,7 +159,7 @@ export default function PostDetailScreen({ route, navigation }: Props) {
           {post.tags && post.tags.length > 0 && (
             <View className="flex-row flex-wrap gap-1.5 mt-3">
               {post.tags.map((tag) => (
-                <View key={tag} className="px-2.5 py-1 rounded-full bg-accent-subtle border border-accent-line">
+                <View key={tag} className="px-2.5 py-1 rounded-full border border-accent">
                   <Text className="text-accent text-xs font-medium">#{tag}</Text>
                 </View>
               ))}
@@ -173,7 +173,7 @@ export default function PostDetailScreen({ route, navigation }: Props) {
                 size={30}
                 color={likedByMe ? colors.danger : colors.foregroundSecondary}
               />
-              <Text className="text-sm text-foreground-tertiary">{post.likes.length}</Text>
+              {post.likes.length > 0 && <Text className="text-sm text-foreground-tertiary">{post.likes.length}</Text>}
             </TouchableOpacity>
             <View className="flex-row items-center gap-1.5">
               <Ionicons name="chatbubble-outline" size={28} color={colors.foregroundSecondary} />

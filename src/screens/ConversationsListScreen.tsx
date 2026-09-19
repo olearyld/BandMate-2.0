@@ -109,7 +109,7 @@ const ConversationRow = memo(function ConversationRow({
 }) {
   return (
     <TouchableOpacity
-      className="flex-row items-center py-3 border-b border-border-subtle"
+      className="flex-row items-center py-5 border-b border-border-subtle"
       onPress={() => onPress(item)}
     >
       <Avatar
@@ -119,11 +119,11 @@ const ConversationRow = memo(function ConversationRow({
         className="mr-3"
       />
       <View className="flex-1 mr-2">
-        <Text className="text-base font-bold text-foreground" numberOfLines={1}>
+        <Text className="text-xl font-bold text-foreground" numberOfLines={1}>
           {item.otherProfile.display_name ?? item.otherProfile.username}
         </Text>
         <Text
-          className={`text-sm ${item.unreadCount > 0 ? 'text-foreground font-medium' : 'text-foreground-tertiary'}`}
+          className={`text-lg mt-1 ${item.unreadCount > 0 ? 'text-foreground font-medium' : 'text-foreground-tertiary'}`}
           numberOfLines={1}
         >
           {item.lastMessage.content}

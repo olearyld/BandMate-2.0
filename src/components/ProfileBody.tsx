@@ -9,6 +9,12 @@ const AVAILABILITY_LABELS = Object.fromEntries(
   AVAILABILITY_STATUSES.map((s) => [s.value, s.label])
 );
 
+// Static placeholder for the profile backdrop — same deterministic
+// "picsum.photos/seed/bandmate-*" convention scripts/seed.js's IMAGE_SEEDS
+// already uses, not tied to any user data. Editing/uploading a real one is
+// future work, not built yet (see CONVENTIONS.md Known tech debt).
+const PROFILE_BACKDROP_URL = 'https://picsum.photos/seed/bandmate-profile-backdrop/800/400';
+
 /** A small square thumbnail for a highlighted post — used both by the read-only
  * reel here and by MyProfileScreen's manage panel, so the media-type-specific
  * rendering (image/video-with-play-icon/audio-icon) lives in one place. */
@@ -43,7 +49,7 @@ export default function ProfileBody({
   onManageHighlights,
 }: {
   profile: FullProfile;
-  /** Rendered in the header, below the experience badge — e.g. PublicProfileScreen's connect button. */
+  /** Rendered in the header, below the avatar/name/badge row — e.g. PublicProfileScreen's connect button. */
   actionSlot?: ReactNode;
   /** Owner-only "Manage" affordance on the Highlights section — omitted entirely for a viewer. */
   onManageHighlights?: () => void;
@@ -55,30 +61,52 @@ export default function ProfileBody({
 
   return (
     <ScrollView className="flex-1 bg-background" contentContainerClassName="pb-10">
-      {/* Header */}
-      <View className="items-center pt-10 pb-6 px-6 border-b border-border-subtle">
-        <Avatar
-          uri={profile.avatar_url}
-          name={profile.display_name ?? profile.username}
-          size="xl"
-          className="mb-3"
-        />
-        <Text className="text-2xl font-bold text-foreground">
-          {profile.display_name ?? profile.username}
-        </Text>
-        <Text className="text-sm text-foreground-tertiary">@{profile.username}</Text>
-        {(profile.location_city || profile.location_state) && (
-          <Text className="text-sm text-foreground-muted mt-1">
-            📍 {[profile.location_city, profile.location_state].filter(Boolean).join(', ')}
-          </Text>
-        )}
-        {profile.experience_level && (
-          <View className="mt-2 px-3 py-1 rounded-full bg-accent-subtle">
-            <Text className="text-accent text-xs font-semibold capitalize">
-              {profile.experience_level}
+      {/* Backdrop — a static placeholder photo, not the user's own (that's
+          the small avatar below, next to their name). Deterministic picsum
+          URL, same convention as seed.js's IMAGE_SEEDS — content genuinely
+          doesn't matter yet. Dark overlay on top keeps it reading as "cool
+          and dark" regardless of what the placeholder photo itself looks
+          like. Editing/uploading a real backdrop is future work, not built
+          yet — see Known tech debt. */}
+      <View className="w-full h-56 bg-gray-900">
+        <Image source={{ uri: PROFILE_BACKDROP_URL }} className="w-full h-full absolute" resizeMode="cover" />
+        <View className="w-full h-full absolute bg-black/50" />
+      </View>
+
+      {/* Header text — horizontal: avatar to the left of name/@/location,
+          experience badge pushed to the row's right edge (flex-1 on the
+          text column does the pushing), left-aligned rather than the old
+          centered column. Avatar downsized to "lg" (44px, same size
+          DiscoverRow's avatar-next-to-name-column layout already uses) —
+          "xl" (96px) was sized for the old standalone centered avatar, too
+          big sitting inline next to a single line of text. */}
+      <View className="px-6 pt-6 pb-6 border-b border-border-subtle">
+        <View className="flex-row items-center">
+          <Avatar
+            uri={profile.avatar_url}
+            name={profile.display_name ?? profile.username}
+            size="lg"
+            className="mr-3"
+          />
+          <View className="flex-1">
+            <Text className="text-2xl font-bold text-foreground">
+              {profile.display_name ?? profile.username}
             </Text>
+            <Text className="text-sm text-foreground-tertiary">@{profile.username}</Text>
+            {(profile.location_city || profile.location_state) && (
+              <Text className="text-sm text-foreground-muted mt-1">
+                📍 {[profile.location_city, profile.location_state].filter(Boolean).join(', ')}
+              </Text>
+            )}
           </View>
-        )}
+          {profile.experience_level && (
+            <View className="ml-2 px-3 py-1 rounded-full border border-accent">
+              <Text className="text-accent text-xs font-semibold capitalize">
+                {profile.experience_level}
+              </Text>
+            </View>
+          )}
+        </View>
         {actionSlot && <View className="mt-4">{actionSlot}</View>}
       </View>
 
@@ -186,7 +214,7 @@ export default function ProfileBody({
             {genres.map((pg) => (
               <View
                 key={pg.genres.id}
-                className="px-3 py-1.5 rounded-full bg-accent-subtle border border-accent-line"
+                className="px-3 py-1.5 rounded-full border border-accent"
               >
                 <Text className="text-accent text-sm font-medium">{pg.genres.name}</Text>
               </View>
